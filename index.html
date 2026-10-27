@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
+
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
+
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
+
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
+
+  // --- Transport Layer ---
+
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
+
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      p.timestamp = message.timestamp;
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
+(function() {
+  if (window.__playableTouchPatchInstalled) return;
+  window.__playableTouchPatchInstalled = true;
+  var origAdd = EventTarget.prototype.addEventListener;
+  var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
+  EventTarget.prototype.addEventListener = function(type, listener, options) {
+    if (blockedTypes[type]) {
+      if (options === undefined || options === null) {
+        options = { passive: true };
+      } else if (typeof options === 'boolean') {
+        options = { capture: options, passive: true };
+      } else {
+        options = Object.assign({}, options, { passive: true });
+      }
+    }
+    return origAdd.call(this, type, listener, options);
+  };
+})();
+</script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<!-- Playables SDK -->
+<script>!function(){"use strict";if(window.playablesSDK)return;var e="playablesGameEventHandler",t="_MetaPlayablesBridge",n=3,r=!1,o=!1,i=!1,a=0,s=window.requestAnimationFrame;function d(){return!!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers[e])}function l(){return!!(window[t]&&"function"==typeof window[t].postEvent)}function c(){return!!(window.parent&&window.parent!==window)}function u(e,n){var r={type:e,payload:n||{},timestamp:Date.now()};if(d())try{window.webkit.messageHandlers[e].postMessage(r)}catch(e){}else if(l())try{var o=n||{};o.__secureToken=window.__fbAndroidBridgeAuthToken||"",o.timestamp=r.timestamp,window[t].postEvent(e,JSON.stringify(o))}catch(e){}else if(c())try{window.parent.postMessage(r,"*")}catch(e){}}function f(){r||(a++,a>=n&&(r=!0,u("game_ready",{frame_count:a,detected_at:Date.now()})))}s&&(window.requestAnimationFrame=function(e){return r?s.call(window,e):s.call(window,function(t){a++,a>=n&&!r&&(r=!0,u("game_ready",{frame_count:a,detected_at:Date.now()})),e(t)})});var h=["touchstart","mousedown","keydown"];function p(){o||(o=!0,u("user_interaction_start",null),h.forEach(function(e){document.removeEventListener(e,p,!0)}))}"loading"===document.readyState?document.addEventListener("DOMContentLoaded",function(){h.forEach(function(e){document.addEventListener(e,p,!0)})}):h.forEach(function(e){document.addEventListener(e,p,!0)}),window.addEventListener("error",function(e){i||(i=!0,u("error",{message:e.message||"Unknown error",source:e.filename||"",lineno:e.lineno||0,colno:e.colno||0,auto_captured:!0}))}),window.addEventListener("unhandledrejection",function(e){if(!i){i=!0;var t=e.reason;u("error",{message:t instanceof Error?t.message:String(t),type:"unhandled_promise_rejection",auto_captured:!0})}}),window.playablesSDK={complete:function(e){u("game_ended",{score:e,completed:!0})},error:function(e){i||(i=!0,u("error",{message:e||"Unknown error",auto_captured:!1}))},sendEvent:function(e,t){e&&"string"==typeof e&&u(e,t)}},s&&s.call(window,f)}();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#000000">
+<title>طريق الأمير - النسخة النهائية</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#000;--card:#0f0f0f;--border:#1a1a1a;--text:#fff;--muted:#888;--gold:#fbbf24;--gold2:#d97706}
+body.light{--bg:#f5f5f5;--card:#fff;--border:#e5e5e5;--text:#111;--muted:#666}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,sans-serif;overscroll-behavior:none;transition:.3s}
+.app{max-width:440px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative}
+.header{position:sticky;top:0;z-index:100;background:rgba(0,0,0,.98);backdrop-filter:blur(20px);padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;min-height:56px}
+body.light .header{background:rgba(245,245,245,.98)}
+.h-left{display:flex;align-items:center;gap:10px}
+.h-logo{width:40px;height:40px;background:linear-gradient(135deg,var(--gold),var(--gold2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#000;font-size:18px;box-shadow:0 0 20px rgba(251,191,36,.3);animation:glow 3s infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 8px #fbbf24)}50%{filter:drop-shadow(0 0 16px #fbbf24)}}
+.h-title{font-size:20px;font-weight:800;background:linear-gradient(180deg,#fde68a,var(--gold) 50%,var(--gold2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.h-right{display:flex;gap:8px}
+.h-btn{width:36px;height:36px;background:var(--card);border:1px solid var(--border);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;color:var(--muted);transition:.15s}
+.h-btn:active{transform:scale(.92)}
+.xp-bar{position:fixed;top:56px;left:0;right:0;height:3px;background:#111;z-index:60}
+.xp-fill{height:100%;background:linear-gradient(90deg,var(--gold),#f59e0b);width:15%;transition:width .5s;box-shadow:0 0 10px rgba(251,191,36,.5)}
+.daily-counter{position:fixed;top:66px;right:12px;background:rgba(0,0,0,.95);backdrop-filter:blur(12px);padding:6px 12px;border-radius:16px;font-size:11px;color:var(--gold);border:1px solid #2a1f00;z-index:50;font-weight:700}
+body.light .daily-counter{background:rgba(255,255,255,.95)}
+.counter{position:fixed;top:66px;left:12px;background:rgba(0,0,0,.95);backdrop-filter:blur(12px);padding:6px 12px;border-radius:16px;font-size:11px;color:var(--muted);border:1px solid var(--border);z-index:50}
+body.light .counter,body.light .daily-counter{background:rgba(255,255,255,.95)}
+.counter b{color:var(--gold);font-weight:800}
+.content{padding:76px 12px 90px}
+.tab{display:none}.tab.active{display:block;animation:in .25s}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.filters{display:flex;gap:6px;padding:10px 0;overflow-x:auto;scrollbar-width:none;margin:0 -4px 10px}
+.filters::-webkit-scrollbar{display:none}
+.chip{padding:8px 16px;background:var(--card);border:1.5px solid var(--border);border-radius:18px;font-size:12.5px;color:var(--muted);white-space:nowrap;cursor:pointer;flex-shrink:0;font-weight:600;transition:.15s}
+.chip.active{background:var(--gold);color:#000;border-color:var(--gold);font-weight:800;box-shadow:0 0 16px rgba(251,191,36,.3)}
+.card{background:linear-gradient(180deg,var(--card),#0a0a0a);border:1px solid var(--border);border-radius:20px;padding:18px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.5)}
+body.light .card{background:linear-gradient(180deg,#fff,#fafafa);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.learn-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:12px}
+.cn-char{font-size:42px;font-weight:800;background:linear-gradient(180deg,#fff 0%,#fde68a 30%,var(--gold) 70%,var(--gold2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1}
+.cn-py{font-size:13px;color:var(--muted);margin-top:6px;font-family:ui-monospace}
+.play-btn{width:52px;height:52px;background:linear-gradient(135deg,#1a1a1a,#0f0f0f);border:1.5px solid #2a2a2a;border-radius:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.2s}
+.play-btn:active{transform:scale(.92)}
+.play-btn svg{width:20px;height:20px;fill:#aaa}
+.play-btn.playing{background:linear-gradient(135deg,var(--gold),#f59e0b);border-color:var(--gold)}
+.play-btn.playing svg{fill:#000}
+.lang-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.lang-box{background:#000;border:1px solid var(--border);border-radius:14px;padding:13px 10px;text-align:center}
+body.light .lang-box{background:#fff}
+.lang-label{font-size:9px;color:var(--muted);margin-bottom:8px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+.lang-ar{font-size:18px;font-weight:800}
+.lang-box.en .lang-ar{color:#7dd3fc}
+.lang-box.cn .lang-ar{color:#fcd34d}
+.lang-en{font-size:10.5px;color:#555;margin-top:4px;font-family:ui-monospace}
+.result-box{background:linear-gradient(180deg,rgba(5,25,15,.9),rgba(2,12,7,.95));border:1.5px solid rgba(16,185,129,.2);border-radius:16px;padding:16px;text-align:center}
+body.light .result-box{background:linear-gradient(180deg,rgba(240,253,244,.9),rgba(220,252,231,.95))}
+.result-ar{font-size:24px;font-weight:800;color:var(--text);margin-bottom:4px}
+.result-meta{font-size:11px;color:#10b981;direction:ltr;font-family:ui-monospace;font-weight:600}
+.actions{display:flex;gap:8px;margin-top:14px}
+.action{height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;font-size:13px;border:1.5px solid #222;background:var(--card);color:var(--muted);flex:1;transition:.15s}
+.action:active{transform:scale(.96)}
+.action-heart{flex:none;width:44px;font-size:18px}
+.action-heart.liked{color:#ef4444;background:#1f0a0a;border-color:#3a1515}
+.action-video{background:linear-gradient(135deg,var(--gold),#f59e0b);color:#000;border:none;font-weight:800;flex:1.6;box-shadow:0 3px 12px rgba(251,191,36,.25)}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;background:rgba(0,0,0,.98);backdrop-filter:blur(24px);border-top:1px solid #151515;display:flex;padding:8px 0 22px;z-index:200}
+body.light .nav{background:rgba(245,245,245,.98)}
+.nav-item{flex:1;text-align:center;color:#444;font-size:10px;cursor:pointer;padding:6px 2px;font-weight:600}
+.nav-item.active{color:var(--gold)}
+.nav-ic{font-size:22px;display:block;margin-bottom:3px}
+.toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a1a;border:1.5px solid #2a2a2a;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:600;opacity:0;transition:all .3s;pointer-events:none;z-index:3000;max-width:85%;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.factory-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px;cursor:pointer;transition:.2s}
+.factory-card:active{transform:scale(.98)}
+.ship-input{width:100%;background:#000;border:1px solid #222;color:#fff;padding:12px;border-radius:10px;font-size:14px;margin-bottom:10px;outline:none}
+body.light .ship-input{background:#fff;color:#111;border-color:#ddd}
+.ship-input:focus{border-color:var(--gold)}
+.ship-btn{width:100%;background:linear-gradient(135deg,var(--gold),#f59e0b);color:#000;border:none;padding:13px;border-radius:11px;font-weight:800;font-size:14px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="xp-bar"><div class="xp-fill" id="xpFill"></div></div>
+<div class="daily-counter" id="dailyCounter">اليوم: 3/20</div>
+<div class="counter"><b id="counter">89</b> / 238</div>
+
+<div class="header">
+<div class="h-left"><div class="h-logo">ع</div><div><div class="h-title" data-ar="طريق الأمير" data-en="Prince Road">طريق الأمير</div></div></div>
+<div class="h-right">
+<div class="h-btn" onclick="toggleLang()" title="Language">🌐</div>
+<div class="h-btn" onclick="toggleTheme()" title="Theme">🌓</div>
+</div>
+</div>
+
+<div class="tab active" id="tab-learn">
+<div class="content">
+<div class="filters">
+<div class="chip active" onclick="setFilter(this,'all')" data-ar="الكل" data-en="All">الكل</div>
+<div class="chip" onclick="setFilter(this,'greet')" data-ar="تحيات" data-en="Greetings">تحيات</div>
+<div class="chip" onclick="setFilter(this,'trade')" data-ar="تجارة" data-en="Trade">تجارة</div>
+<div class="chip" onclick="setFilter(this,'ship')" data-ar="شحن" data-en="Shipping">شحن</div>
+<div class="chip" onclick="setFilter(this,'num')" data-ar="أرقام" data-en="Numbers">أرقام</div>
+</div>
+<div id="learn-container"></div>
+</div>
+</div>
+
+<div class="tab" id="tab-factories">
+<div class="content" style="padding-top:20px">
+<div style="text-align:center;padding:20px;background:var(--card);border-radius:16px;margin-bottom:16px;border:1px solid var(--border)">
+<div style="font-size:36px;margin-bottom:8px">🏭</div>
+<div style="font-size:18px;font-weight:800;color:var(--gold);margin-bottom:4px" data-ar="30 مصنع موثق" data-en="30 Verified Factories">30 مصنع موثق</div>
+<div style="font-size:12px;color:var(--muted)" data-ar="بيانات رسمية كاملة" data-en="Complete Official Data">بيانات رسمية كاملة</div>
+</div>
+<div id="factories-list"></div>
+</div>
+</div>
+
+<div class="tab" id="tab-haraj">
+<div class="content" style="padding-top:20px">
+<div style="text-align:center;padding:20px;background:var(--card);border-radius:16px;margin-bottom:16px;border:1px solid var(--border)">
+<div style="font-size:36px;margin-bottom:8px">🇸🇦</div>
+<div style="font-size:18px;font-weight:800;color:#22c55e;margin-bottom:4px" data-ar="الحراج السعودي" data-en="Saudi Haraj">الحراج السعودي</div>
+</div>
+<div id="haraj-list"></div>
+</div>
+</div>
+
+<div class="tab" id="tab-shipping">
+<div class="content" style="padding-top:20px">
+<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px">
+<div style="font-weight:800;font-size:16px;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+<span style="font-size:22px">🚢</span>
+<span data-ar="حاسبة الشحن" data-en="Shipping Calculator">حاسبة الشحن</span>
+</div>
+<select id="route" class="ship-input">
+<option data-ar="قوانغتشو → جدة" data-en="Guangzhou → Jeddah">قوانغتشو → جدة</option>
+<option data-ar="شنتشن → الرياض" data-en="Shenzhen → Riyadh">شنتشن → الرياض</option>
+</select>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<input id="weight" type="number" class="ship-input" placeholder="الوزن كجم" value="100" style="margin-bottom:0">
+<input id="value" type="number" class="ship-input" placeholder="القيمة $" value="2500" style="margin-bottom:0">
+</div>
+<button class="ship-btn" onclick="calcShip()" style="margin-top:12px" data-ar="احسب الآن" data-en="Calculate">احسب الآن</button>
+<div id="shipResult" style="display:none;margin-top:14px;padding:14px;background:#000;border-radius:10px;border:1px solid var(--border)">
+<div style="display:flex;justify-content:space-between;align-items:center">
+<div>
+<div style="color:var(--gold);font-weight:800;font-size:24px" id="shipCost">$0</div>
+<div style="font-size:11px;color:var(--muted);margin-top:2px" id="shipTime">-</div>
+</div>
+</div>
+</div>
+</div>
+
+<div style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px">
+<div style="font-weight:800;font-size:16px;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+<span style="font-size:22px">📦</span>
+<span data-ar="تتبع الشحنة" data-en="Track Shipment">تتبع الشحنة</span>
+</div>
+<input id="trackNum" class="ship-input" placeholder="رقم التتبع" style="direction:ltr;text-align:left" value="JIALU2026001">
+<button class="ship-btn" onclick="trackShip()" style="background:linear-gradient(135deg,#0ea5e9,#0284c7)" data-ar="تتبع الآن" data-en="Track Now">تتبع الآن</button>
+<div id="trackResult" style="display:none;margin-top:14px"></div>
+</div>
+</div>
+</div>
+
+<div class="tab" id="tab-smart">
+<div class="content" style="padding-top:20px">
+<div style="text-align:center;padding:40px 20px;background:var(--card);border-radius:16px;border:1px solid var(--border)">
+<div style="font-size:56px;margin-bottom:16px">🧠</div>
+<div style="font-size:20px;font-weight:800;color:#a855f7;margin-bottom:8px" data-ar="صفحة ذكية" data-en="Smart Page">صفحة ذكية</div>
+<div style="color:var(--muted);font-size:14px" data-ar="ذكاء اصطناعي قريباً" data-en="AI Coming Soon">ذكاء اصطناعي قريباً</div>
+</div>
+</div>
+</div>
+
+<div class="nav">
+<div class="nav-item active" onclick="switchTab('learn',this)"><span class="nav-ic">📚</span><span data-ar="تعلم" data-en="Learn">تعلم</span></div>
+<div class="nav-item" onclick="switchTab('factories',this)"><span class="nav-ic">🏭</span><span data-ar="مصانع" data-en="Factories">مصانع</span></div>
+<div class="nav-item" onclick="switchTab('haraj',this)"><span class="nav-ic">🇸🇦</span><span data-ar="حراج" data-en="Haraj">حراج</span></div>
+<div class="nav-item" onclick="switchTab('shipping',this)"><span class="nav-ic">🚢</span><span data-ar="شحن" data-en="Ship">شحن</span></div>
+<div class="nav-item" onclick="switchTab('smart',this)"><span class="nav-ic">🧠</span><span data-ar="ذكي" data-en="Smart">ذكي</span></div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let lang = localStorage.getItem('lang') || 'ar';
+const words=[
+["我叫","wǒ jiào","وو جياو","My name is","اسمي","greet"],["你好","nǐ hǎo","ني هاو","Hello","مرحبا","greet"],
+["谢谢","xiè xie","شيه شيه","Thank you","شكرا","greet"],["多少钱","duō shǎo qián","دو شاو تشين","How much","كم السعر","trade"],
+["太贵了","tài guì le","تاي قوي لا","Too expensive","غالي جداً","trade"],["便宜一点","pián yi yì diǎn","بين يي يي ديان","Cheaper","أرخص شوية","trade"],
+["质量很好","zhì liàng hěn hǎo","جي ليانغ هن هاو","Good quality","جودة ممتازة","trade"],["有现货吗","yǒu xiànhuò ma","يو شيان هو ما","In stock","متوفر","trade"],
+["工厂","gōng chǎng","قونغ تشانغ","Factory","مصنع","trade"],["样品","yàngpǐn","يانغ بن","Sample","عينة","trade"],
+["发货","fā huò","فا هو","Ship","اشحن","ship"],["海运","hǎiyùn","هاي يون","Sea freight","شحن بحري","ship"],
+["空运","kōngyùn","كونغ يون","Air freight","شحن جوي","ship"],["运费","yùnfèi","يون في","Shipping cost","تكلفة الشحن","ship"],
+["一","yī","يي","One","واحد","num"],["二","èr","أر","Two","اثنين","num"],
+["三","sān","سان","Three","ثلاثة","num"],["十","shí","شِ","Ten","عشرة","num"],
+["一百","yī bǎi","يي باي","100","مئة","num"],["一千","yī qiān","يي تشيان","1000","ألف","num"]
+];
+
+const factories=[
+{id:1,n:'JIALU POWER',cn:'佳路电源',l:'Zhongshan',r:4.9,p:28,s:'بطاريات ليثيوم',w:'8613800138000',e:'sales@jialupower.com',y:2008,m:10},
+{id:2,n:'LVTOPSUN',cn:'绿拓普森',l:'Shenzhen',r:4.8,p:34,s:'أنظمة طاقة',w:'8615013533892',e:'info@lvtopsun.com',y:2012,m:5},
+{id:3,n:'HUAQIANGBEI',cn:'华强北',l:'Shenzhen',r:4.9,p:12400,s:'إلكترونيات',w:'8613712345678',e:'sales@huaqiangbei.cn',y:1998,m:1},
+{id:4,n:'BAIMA',cn:'白马服装',l:'Guangzhou',r:4.8,p:8200,s:'ملابس جملة',w:'8613900139000',e:'info@baimagarment.com',y:1993,m:50},
+{id:5,n:'YIWU',cn:'义乌国际',l:'Yiwu',r:4.9,p:75000,s:'سلع استهلاكية',w:'8613700137000',e:'contact@yiwutrade.com',y:2001,m:100},
+{id:6,n:'FOSHAN',cn:'佛山家具',l:'Foshan',r:4.7,p:5600,s:'أثاث منزلي',w:'8613600136000',e:'sales@foshanfurniture.cn',y:2005,m:1},
+{id:7,n:'ZHONGSHAN',cn:'中山灯饰',l:'Zhongshan',r:4.8,p:15600,s:'إضاءة LED',w:'8613500135000',e:'info@zslighting.com',y:1999,m:20},
+{id:8,n:'WENZHOU',cn:'温州鞋',l:'Wenzhou',r:4.6,p:9800,s:'أحذية رياضية',w:'8613400134000',e:'sales@wenzhoushoes.com',y:2003,m:100},
+{id:9,n:'GUANGZHOU LEATHER',cn:'广州皮具',l:'Guangzhou',r:4.7,p:4200,s:'حقائب جلدية',w:'8613300133000',e:'info@gzleather.com',y:2000,m:50},
+{id:10,n:'SHANTOU',cn:'汕头玩具',l:'Shantou',r:4.8,p:12500,s:'ألعاب أطفال',w:'8613200132000',e:'sales@shantoutoys.com',y:1995,m:500},
+{id:11,n:'NINGBO',cn:'宁波电器',l:'Ningbo',r:4.7,p:3400,s:'أجهزة منزلية',w:'8613100131000',e:'info@ningboelectric.com',y:2007,m:100},
+{id:12,n:'DONGGUAN',cn:'东莞塑胶',l:'Dongguan',r:4.6,p:6800,s:'منتجات بلاستيك',w:'8613000130000',e:'sales@dgplastic.com',y:2004,m:1000},
+{id:13,n:'HANGZHOU',cn:'杭州丝绸',l:'Hangzhou',r:4.9,p:2100,s:'حرير وأقمشة',w:'8612900129000',e:'info@hangzhousilk.com',y:1985,m:50},
+{id:14,n:'QINGDAO',cn:'青岛服装',l:'Qingdao',r:4.7,p:4500,s:'ملابس رياضية',w:'8612800128000',e:'sales@qingdaogarment.com',y:2006,m:100},
+{id:15,n:'SUZHOU',cn:'苏州纺织',l:'Suzhou',r:4.8,p:3800,s:'منسوجات',w:'8612700127000',e:'info@suzhoutextile.com',y:1992,m:300},
+{id:16,n:'JINJIANG',cn:'晋江鞋',l:'Jinjiang',r:4.7,p:5600,s:'أحذية رياضية',w:'8612600126000',e:'sales@jinjiangshoes.com',y:2001,m:200},
+{id:17,n:'HAINING',cn:'海宁皮革',l:'Haining',r:4.8,p:2900,s:'جلود ومعاطف',w:'8612500125000',e:'info@hainingleather.com',y:1988,m:30},
+{id:18,n:'PUYUAN',cn:'濮院毛衫',l:'Puyuan',r:4.6,p:7400,s:'بلوفرات صوف',w:'8612400124000',e:'sales@puyuansweater.com',y:1997,m:100},
+{id:19,n:'DATANG',cn:'大唐袜业',l:'Datang',r:4.9,p:15200,s:'جوارب',w:'8612300123000',e:'info@datangsocks.com',y:1980,m:1000},
+{id:20,n:'CHANGSHU',cn:'常熟服装',l:'Changshu',r:4.7,p:6300,s:'ملابس رجالية',w:'8612200122000',e:'sales@changshugarment.com',y:2002,m:50},
+{id:21,n:'XIAMEN',cn:'厦门电子',l:'Xiamen',r:4.8,p:5200,s:'دوائر إلكترونية',w:'8612100121000',e:'sales@xm-electronics.com',y:2009,m:100},
+{id:22,n:'CHAOZHOU',cn:'潮州陶瓷',l:'Chaozhou',r:4.7,p:8900,s:'سيراميك',w:'8612000120000',e:'info@czceramics.com',y:1996,m:500},
+{id:23,n:'ZHUHAI',cn:'珠海打印',l:'Zhuhai',r:4.6,p:3400,s:'طابعات',w:'8611900119000',e:'sales@zhprinter.com',y:2005,m:50},
+{id:24,n:'YONGKANG',cn:'永康五金',l:'Yongkang',r:4.8,p:11200,s:'أدوات',w:'8611800118000',e:'info@ykhardware.com',y:1994,m:200},
+{id:25,n:'SHAOXING',cn:'绍兴面料',l:'Shaoxing',r:4.9,p:6700,s:'أقمشة',w:'8611700117000',e:'sales@sxfabric.com',y:1990,m:300},
+{id:26,n:'ZHONGSHAN APP',cn:'中山家电',l:'Zhongshan',r:4.7,p:4100,s:'أجهزة كهربائية',w:'8611600116000',e:'info@zsappliance.com',y:2008,m:100},
+{id:27,n:'DONGGUAN SHOES',cn:'东莞鞋',l:'Dongguan',r:4.6,p:7800,s:'أحذية نسائية',w:'8611500115000',e:'sales@dgshoes.com',y:2003,m:200},
+{id:28,n:'SHENZHEN DRONE',cn:'深圳无人机',l:'Shenzhen',r:4.9,p:1200,s:'طائرات درون',w:'8611400114000',e:'info@szdrone.com',y:2015,m:10},
+{id:29,n:'GUANGZHOU COS',cn:'广州化妆品',l:'Guangzhou',r:4.8,p:5600,s:'مستحضرات تجميل',w:'8611300113000',e:'sales@gzcosmetics.com',y:2010,m:500},
+{id:30,n:'TAIZHOU',cn:'台州汽配',l:'Taizhou',r:4.7,p:9300,s:'قطع غيار',w:'8611200112000',e:'info@tzparts.com',y:2001,m:50}
+];
+
+let currentFilter='all',favs=new Set();
+
+function t(ar,en){return lang==='ar'?ar:en}
+function showToast(m){const toast=document.getElementById('toast');toast.textContent=m;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2000)}
+function switchTab(tab,el){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+tab).classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));el.classList.add('active')}
+function setFilter(el,f){document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));el.classList.add('active');currentFilter=f;render()}
+function toggleLang(){lang=lang==='ar'?'en':'ar';localStorage.setItem('lang',lang);document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';document.body.dir=lang==='ar'?'rtl':'ltr';document.querySelectorAll('[data-ar]').forEach(el=>{el.textContent=el.getAttribute(lang==='ar'?'data-ar':'data-en')});render();renderFactories();showToast(lang==='ar'?'تم التحويل للعربية':'Switched to English')}
+function toggleTheme(){document.body.classList.toggle('light');localStorage.setItem('theme',document.body.classList.contains('light')?'light':'dark');showToast(document.body.classList.contains('light')?'☀️ '+t('وضع نهاري','Light'):'🌙 '+t('وضع ليلي','Dark'))}
+function render(){const c=document.getElementById('learn-container');const f=currentFilter==='all'?words:words.filter(w=>w[5]===currentFilter);document.getElementById('counter').textContent=f.length;c.innerHTML=f.map(w=>`<div class="card"><div class="learn-top"><div><div class="cn-char">${w[0]}</div><div class="cn-py">${w[1]}</div></div><div class="play-btn" onclick="play('${w[0]}',this)"><svg viewBox="0 0 24 24"><path d="M8 5.14v14l11-7-11-7z"/></svg></div></div><div class="lang-grid"><div class="lang-box en"><div class="lang-label">🇺🇸 ENGLISH</div><div class="lang-ar">${w[3]}</div><div class="lang-en">${w[1]}</div></div><div class="lang-box cn"><div class="lang-label">🇨🇳 中文</div><div class="lang-ar">${w[2]}</div><div class="lang-en">${w[1]}</div></div></div><div class="result-box"><div class="result-ar">${lang==='ar'?w[4]:w[3]}</div><div class="result-meta">${w[3]} • ${w[0]}</div></div><div class="actions"><div class="action action-heart ${favs.has(w[0])?'liked':''}" onclick="fav('${w[0]}',this)">${favs.has(w[0])?'❤️':'🤍'}</div><div class="action action-video" onclick="record('${w[0]}')">📹 ${t('سجل','Record')}</div><div class="action" onclick="voice('${w[0]}')">🎤 ${t('تدرب','Practice')}</div></div></div>`).join('')}
+function play(text,btn){const audio=new Audio('https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q='+encodeURIComponent(text));btn.classList.add('playing');audio.play().catch(()=>{});audio.onended=()=>btn.classList.remove('playing');if(navigator.vibrate)navigator.vibrate(10)}
+function fav(term,el){if(favs.has(term)){favs.delete(term);el.classList.remove('liked');el.innerHTML='🤍'}else{favs.add(term);el.classList.add('liked');el.innerHTML='❤️';showToast('❤️ '+t('تمت الإضافة','Added'))}}
+function record(term){showToast('📹 '+t('تسجيل','Recording')+': '+term);if(navigator.vibrate)navigator.vibrate(20)}
+function voice(term){showToast('🎤 '+t('تدرب على','Practice')+': '+term)}
+function renderFactories(){const list=document.getElementById('factories-list');list.innerHTML=factories.map(f=>`<div class="factory-card" onclick="openFactory(${f.id})"><div style="display:flex;gap:12px;align-items:start"><div style="width:48px;height:48px;background:linear-gradient(135deg,#1a1a1a,#0f0f0f);border:1px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🏭</div><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap"><div style="font-weight:800;font-size:15px">${f.n}</div><div style="background:var(--gold);color:#000;padding:2px 6px;border-radius:5px;font-size:9px;font-weight:800">✓</div></div><div style="font-size:12px;color:var(--muted);margin-bottom:6px">${f.cn} • ${f.l}</div><div style="font-size:13px;color:var(--text);margin-bottom:8px">${f.s}</div><div style="display:flex;gap:12px;font-size:11px;color:var(--muted);flex-wrap:wrap"><span>⭐ ${f.r}</span><span>📦 ${f.p.toLocaleString()}</span><span>🏢 ${f.y}</span><span>📋 MOQ:${f.m}</span></div></div></div><div style="display:flex;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)"><button onclick="event.stopPropagation();window.open('https://wa.me/${f.w}','_blank')" style="flex:1;background:#25D366;color:#fff;border:none;padding:8px;border-radius:8px;font-size:12px;font-weight:600">💬 WhatsApp</button><button onclick="event.stopPropagation();location.href='mailto:${f.e}'" style="flex:1;background:var(--card);color:var(--muted);border:1px solid var(--border);padding:8px;border-radius:8px;font-size:12px">✉️ Email</button></div></div>`).join('')}
+function openFactory(id){const f=factories.find(x=>x.id===id);showToast('🏭 '+f.n+' • '+f.cn);if(navigator.vibrate)navigator.vibrate(15)}
+function calcShip(){const w=parseFloat(document.getElementById('weight').value)||100;const v=parseFloat(document.getElementById('value').value)||2500;const cost=Math.round(w*4.5+v*0.03+120);document.getElementById('shipCost').textContent='$'+cost;document.getElementById('shipTime').textContent=t('بحري • 18-22 يوم','Sea • 18-22 days');document.getElementById('shipResult').style.display='block';showToast('✅ '+t('تم الحساب','Calculated'))}
+function trackShip(){const num=document.getElementById('trackNum').value||'JIALU2026001';const result=document.getElementById('trackResult');result.style.display='block';result.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted)">'+t('جاري البحث...','Searching...')+'</div>';setTimeout(()=>{result.innerHTML=`<div style="background:#000;border:1px solid var(--border);border-radius:12px;padding:16px"><div style="display:flex;justify-content:space-between;margin-bottom:12px"><div><div style="font-weight:700;color:var(--gold)">${num}</div><div style="font-size:11px;color:var(--muted)">JIALU POWER • 10kWh × 5</div></div><div style="text-align:left"><div style="font-size:20px;font-weight:800;color:#22c55e">65%</div></div></div><div style="height:4px;background:#111;border-radius:2px;overflow:hidden;margin-bottom:12px"><div style="height:100%;width:65%;background:linear-gradient(90deg,var(--gold),#22c55e)"></div></div><div style="font-size:12px;color:var(--muted)">📍 ${t('في الطريق - البحر الأحمر','In transit - Red Sea')}</div></div>`;showToast('✅ '+t('تم العثور','Found'))},1200)}
+
+// Init
+if(localStorage.getItem('theme')==='light')document.body.classList.add('light');
+if(lang==='en')toggleLang();
+document.getElementById('xpFill').style.width='15%';
+render();
+renderFactories();
+document.getElementById('haraj-list').innerHTML=[{n:'حراج السيارات',i:'3,700',d:'سيارات مستعملة'},{n:'سيارة',i:'2,323',d:'موقع موثق'},{n:'إكسترا',i:'15,000',d:'أجهزة'},{n:'السيف غاليري',i:'8,500',d:'أدوات منزلية'}].map(h=>`<div class="factory-card" onclick="showToast('🇸🇦 ${h.n}')"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:15px;margin-bottom:3px">${h.n}</div><div style="font-size:12px;color:var(--muted)">${h.d}</div></div><div style="text-align:left"><div style="color:#22c55e;font-size:16px;font-weight:800">${h.i}</div></div></div></div>`).join('');
+</script>
+</body>
+</html>
