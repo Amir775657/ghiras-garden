@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
+
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
+
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
+
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
+
+  // --- Transport Layer ---
+
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
+  }
+
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      p.timestamp = message.timestamp;
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
+  });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<!-- PLAYABLE_TOUCH_PATCH_V1 --><script>
+(function() {
+  if (window.__playableTouchPatchInstalled) return;
+  window.__playableTouchPatchInstalled = true;
+  var origAdd = EventTarget.prototype.addEventListener;
+  var blockedTypes = { touchstart: 1, touchmove: 1, wheel: 1 };
+  EventTarget.prototype.addEventListener = function(type, listener, options) {
+    if (blockedTypes[type]) {
+      if (options === undefined || options === null) {
+        options = { passive: true };
+      } else if (typeof options === 'boolean') {
+        options = { capture: options, passive: true };
+      } else {
+        options = Object.assign({}, options, { passive: true });
+      }
+    }
+    return origAdd.call(this, type, listener, options);
+  };
+})();
+</script><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>طريق الأمير - النسخة النهائية المدمجة</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'SF Pro',sans-serif;overscroll-behavior:none}
+.app{max-width:440px;margin:0 auto;min-height:100vh;background:#000;position:relative}
+.header{position:sticky;top:0;z-index:100;background:rgba(0,0,0,.98);backdrop-filter:blur(20px);padding:12px 16px;border-bottom:1px solid #0a0a0a;display:flex;align-items:center;justify-content:space-between}
+.h-left{display:flex;align-items:center;gap:10px}
+.h-logo{width:40px;height:40px;background:linear-gradient(135deg,#fbbf24,#d97706);border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#000;font-size:18px;box-shadow:0 0 20px rgba(251,191,36,.3)}
+.h-title{font-size:22px;font-weight:800;background:linear-gradient(180deg,#fde68a,#fbbf24 50%,#d97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.h-sub{font-size:10px;color:#666;margin-top:-2px}
+.h-right{width:40px;height:40px;background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.content{padding:0 12px 90px}
+.tab{display:none}.tab.active{display:block;animation:in .25s}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.filters{display:flex;gap:6px;padding:10px 0;overflow-x:auto;scrollbar-width:none;margin:0 -4px;padding:10px 4px}
+.filters::-webkit-scrollbar{display:none}
+.chip{padding:7px 14px;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:16px;font-size:12px;color:#777;white-space:nowrap;cursor:pointer;flex-shrink:0;transition:.15s;font-weight:500}
+.chip.active{background:#fbbf24;color:#000;border-color:#fbbf24;font-weight:700;box-shadow:0 0 12px rgba(251,191,36,.2)}
+.chip:active{transform:scale(.95)}
+.counter{position:fixed;top:68px;left:16px;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);padding:5px 10px;border-radius:16px;font-size:11px;color:#888;border:1px solid #1a1a1a;z-index:50}
+.counter b{color:#fbbf24;font-weight:700}
+.card{background:linear-gradient(180deg,#0e0e0e,#0a0a0a);border:1px solid #1a1a1a;border-radius:20px;padding:16px;margin-bottom:10px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)}
+.learn-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.cn-wrap{flex:1}
+.cn-char{font-size:40px;font-weight:700;background:linear-gradient(180deg,#fde68a,#fbbf24 60%,#d97706);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1.1;letter-spacing:.5px}
+.cn-py{font-size:13px;color:#666;margin-top:4px;font-family:ui-monospace,monospace}
+.play-btn{width:48px;height:48px;background:linear-gradient(135deg,#111,#0a0a0a);border:1px solid #222;border-radius:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.15s;box-shadow:0 2px 8px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05)}
+.play-btn:active{transform:scale(.9);background:#1a1a1a}
+.play-btn svg{width:18px;height:18px;fill:#999;margin-left:1px}
+.play-btn.playing{background:linear-gradient(135deg,#fbbf24,#f59e0b);border-color:#fbbf24;box-shadow:0 0 16px rgba(251,191,36,.3)}
+.play-btn.playing svg{fill:#000}
+.lang-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.lang-box{background:#000;border:1px solid #161616;border-radius:14px;padding:12px 8px;text-align:center;position:relative;overflow:hidden}
+.lang-box::before{content:'';position:absolute;inset:0;opacity:.03}
+.lang-box.en::before{background:linear-gradient(135deg,#0ea5e9,#0284c7)}
+.lang-box.cn::before{background:linear-gradient(135deg,#f59e0b,#d97706)}
+.lang-label{display:flex;align-items:center;justify-content:center;gap:4px;font-size:9px;color:#555;margin-bottom:7px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.lang-ar{font-size:17px;font-weight:700;line-height:1.2}
+.lang-box.en .lang-ar{color:#7dd3fc}
+.lang-box.cn .lang-ar{color:#fcd34d}
+.lang-en{font-size:10px;color:#444;margin-top:3px;font-family:ui-monospace}
+.result-box{background:linear-gradient(180deg,rgba(5,30,18,.8),rgba(2,15,9,.95));border:1px solid rgba(16,185,129,.15);border-radius:14px;padding:14px;text-align:center;position:relative}
+.result-box::before{content:'';position:absolute;inset:0;border-radius:14px;background:radial-gradient(circle at center,rgba(16,185,129,.08),transparent 70%);pointer-events:none}
+.result-ar{font-size:22px;font-weight:700;color:#fff;margin-bottom:3px}
+.result-meta{font-size:11px;color:#059669;direction:ltr;font-family:ui-monospace}
+.actions{display:flex;gap:6px;margin-top:12px}
+.action{height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:600;font-size:12px;border:1px solid #1a1a1a;transition:.15s;background:#0f0f0f;color:#888;position:relative;overflow:hidden}
+.action:active{transform:scale(.96)}
+.action-heart{width:40px;flex:none}
+.action-heart.liked{color:#ef4444;background:#1a0a0a;border-color:#2a1515}
+.action-video{flex:1.2;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border:none;font-weight:700;box-shadow:0 2px 10px rgba(251,191,36,.2)}
+.action-voice{flex:1}
+.action.recording{background:#1a0a0a;color:#ef4444;border-color:#2a1515;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+.rec-indicator{display:none;align-items:center;gap:8px;margin-top:10px;padding:8px 12px;background:#1a0a0a;border:1px solid #2a1515;border-radius:10px;font-size:11px;color:#ef4444}
+.rec-indicator.active{display:flex}
+.rec-dot{width:6px;height:6px;background:#ef4444;border-radius:50%;animation:pulse 1s infinite}
+.media-preview{display:none;margin-top:10px;border-radius:12px;overflow:hidden;border:1px solid #1a1a1a;background:#000}
+.media-preview.active{display:block}
+.media-preview audio,.media-preview video{width:100%;display:block}
+.media-preview video{max-height:200px;background:#000}
+.factory-item{background:linear-gradient(180deg,#0e0e0e,#0a0a0a);border:1px solid #1a1a1a;border-radius:16px;padding:14px;margin-bottom:9px;cursor:pointer;display:flex;gap:12px;align-items:center;transition:.2s}
+.factory-item:active{transform:scale(.98);background:#141414;border-color:#222}
+.f-icon{width:52px;height:52px;background:linear-gradient(135deg,#111,#0a0a0a);border:1px solid #222;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.f-details{flex:1;min-width:0}
+.f-name{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f-badge{background:#fbbf24;color:#000;padding:2px 6px;border-radius:5px;font-size:9px;font-weight:800;flex-shrink:0}
+.f-location{font-size:12px;color:#777;margin:3px 0;display:flex;align-items:center;gap:4px}
+.f-stats{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.f-stat{font-size:10px;background:#050505;padding:3px 7px;border-radius:5px;border:1px solid #151515;color:#999;display:flex;align-items:center;gap:3px}
+.f-stat.pay{color:#fbbf24;border-color:#241a00;cursor:pointer}
+.f-stat.pay:active{background:#1a1400}
+.section-title{font-size:15px;font-weight:700;color:#fbbf24;margin:16px 4px 10px;display:flex;align-items:center;gap:6px}
+.portal{position:fixed;inset:0;background:#000;z-index:1000;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1);overflow-y:auto}
+.portal.active{transform:translateY(0)}
+.portal-header{position:sticky;top:0;background:rgba(0,0,0,.95);backdrop-filter:blur(20px);padding:12px 16px;border-bottom:1px solid #111;display:flex;align-items:center;gap:12px;z-index:10}
+.portal-back{width:36px;height:36px;background:#111;border:1px solid #222;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:.15s}
+.portal-back:active{transform:scale(.9);background:#1a1a1a}
+.portal-info{flex:1;min-width:0}
+.portal-name{font-weight:800;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.portal-sub{font-size:12px;color:#666;margin-top:1px}
+.portal-content{padding:16px}
+.hero-banner{position:relative;height:160px;background:linear-gradient(135deg,#1a1a1a,#0f0f0f);border-radius:16px;overflow:hidden;margin-bottom:14px;border:1px solid #1a1a1a}
+.hero-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:72px;opacity:.15}
+.hero-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.9) 0%,transparent 60%);display:flex;flex-direction:column;justify-content:flex-end;padding:14px}
+.hero-stats{display:flex;gap:8px;flex-wrap:wrap}
+.hero-stat{background:rgba(0,0,0,.75);backdrop-filter:blur(10px);padding:5px 9px;border-radius:8px;font-size:11px;border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:4px}
+.quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.quick-btn{background:#0f0f0f;border:1px solid #1a1a1a;border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;transition:.15s}
+.quick-btn:active{transform:scale(.95);background:#1a1a1a;border-color:#fbbf24}
+.quick-ic{font-size:22px;margin-bottom:4px}
+.quick-tx{font-size:10px;color:#aaa;font-weight:600}
+.portal-section{background:#0a0a0a;border:1px solid #141414;border-radius:14px;padding:13px;margin-bottom:12px}
+.portal-sec-title{font-size:13px;font-weight:700;color:#fbbf24;margin-bottom:10px;display:flex;align-items:center;gap:5px}
+.learn-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none;margin:0 -4px;padding:0 4px}
+.learn-scroll::-webkit-scrollbar{display:none}
+.learn-chip{background:#050505;border:1px solid #1a1a1a;border-radius:10px;padding:8px 12px;white-space:nowrap;cursor:pointer;transition:.15s;flex-shrink:0}
+.learn-chip:active{background:#111;border-color:#fbbf24;transform:scale(.95)}
+.learn-chip-cn{font-size:14px;font-weight:600;color:#fcd34d}
+.learn-chip-ar{font-size:10px;color:#666;margin-top:2px}
+.product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.product-card{background:#050505;border:1px solid #151515;border-radius:10px;overflow:hidden;cursor:pointer;transition:.15s}
+.product-card:active{transform:scale(.95);border-color:#222}
+.product-img{width:100%;aspect-ratio:1;background:#0a0a0a;display:flex;align-items:center;justify-content:center;font-size:28px}
+.product-name{padding:6px;font-size:10px;text-align:center;color:#999;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.info-item{background:#050505;border:1px solid #151515;border-radius:8px;padding:10px}
+.info-label{font-size:10px;color:#666;margin-bottom:3px}
+.info-value{font-size:13px;font-weight:700}
+.whatsapp-btn{width:100%;background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;border:none;padding:14px;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;box-shadow:0 4px 16px rgba(37,211,102,.25);transition:.15s}
+.whatsapp-btn:active{transform:scale(.98);box-shadow:0 2px 8px rgba(37,211,102,.2)}
+.nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:440px;background:rgba(0,0,0,.96);backdrop-filter:blur(20px);border-top:1px solid #0f0f0f;display:flex;padding:6px 0 20px;z-index:200}
+.nav-item{flex:1;text-align:center;color:#3a3a3a;font-size:9px;cursor:pointer;padding:5px 2px;transition:.15s}
+.nav-item.active{color:#fbbf24}
+.nav-item:active{transform:scale(.95)}
+.nav-ic{font-size:20px;display:block;margin-bottom:2px;line-height:1}
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(20px);background:#111;border:1px solid #222;padding:10px 16px;border-radius:11px;font-size:12px;font-weight:500;opacity:0;transition:all .3s;pointer-events:none;z-index:3000;max-width:85%;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+
+<style>
+/* === ENHANCEMENTS === */
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 8px #fbbf24)}50%{filter:drop-shadow(0 0 16px #fbbf24)}}
+.h-logo{animation:glow 3s infinite}
+.xp-bar{position:fixed;top:56px;left:0;right:0;height:3px;background:#111;z-index:60}
+.xp-fill{height:100%;background:linear-gradient(90deg,#fbbf24,#f59e0b);width:0%;transition:width .5s}
+.daily-counter{position:fixed;top:68px;right:16px;background:rgba(0,0,0,.85);backdrop-filter:blur(12px);padding:5px 10px;border-radius:16px;font-size:11px;color:#fbbf24;border:1px solid #2a1f00;z-index:50;font-weight:600}
+.skeleton{background:linear-gradient(90deg,#0a0a0a 25%,#1a1a1a 50%,#0a0a0a 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.onboard{position:fixed;inset:0;background:#000;z-index:2000;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:40px;text-align:center}
+.onboard.hide{display:none}
+.onboard-logo{font-size:80px;margin-bottom:20px;animation:glow 2s infinite}
+.onboard-title{font-size:28px;font-weight:800;background:linear-gradient(180deg,#fde68a,#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px}
+.onboard-text{color:#888;font-size:15px;line-height:1.6;margin-bottom:30px;max-width:300px}
+.onboard-btn{width:100%;max-width:280px;padding:16px;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border:none;border-radius:14px;font-weight:800;font-size:16px;cursor:pointer}
+.sos-btn{position:fixed;bottom:90px;right:16px;width:56px;height:56px;background:linear-gradient(135deg,#ef4444,#dc2626);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 4px 20px rgba(239,68,68,.4);z-index:100;cursor:pointer;animation:pulse 2s infinite}
+.xp-popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0);background:#111;border:2px solid #fbbf24;border-radius:20px;padding:24px;text-align:center;z-index:3000;transition:transform .3s}
+.xp-popup.show{transform:translate(-50%,-50%) scale(1)}
+.xp-popup-icon{font-size:48px;margin-bottom:12px}
+.xp-popup-text{font-size:18px;font-weight:700;color:#fbbf24;margin-bottom:4px}
+.xp-popup-sub{font-size:13px;color:#888}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="xp-bar"><div class="xp-fill" id="xpFill"></div></div>
+<div class="daily-counter" id="dailyCounter">اليوم: 0/20</div>
+<div class="sos-btn" onclick="openSOS()" title="طوارئ">🆘</div>
+
+<div class="onboard" id="onboard">
+  <div class="onboard-logo">👑</div>
+  <div class="onboard-title">طريق الأمير</div>
+  <div class="onboard-text">تعلم الصينية التجارية<br>تواصل مع 200 مصنع<br>وفر آلاف الدولارات</div>
+  <button class="onboard-btn" onclick="startApp()">ابدأ التعلم الآن</button>
+  <div style="margin-top:20px;font-size:12px;color:#555">الإصدار الذكي 2.0</div>
+</div>
+
+<div class="xp-popup" id="xpPopup">
+  <div class="xp-popup-icon">⭐</div>
+  <div class="xp-popup-text" id="xpText">+10 XP</div>
+  <div class="xp-popup-sub" id="xpSub">أحسنت!</div>
+</div>
+
+<div class="header">
+<div class="h-left"><div class="h-logo">ع</div><div><div class="h-title">طريق الأمير</div><div class="h-sub">بوابة العلم الاحترافية</div></div></div>
+<div class="h-right">👑</div>
+</div>
+
+<div class="counter"><b id="counter">85</b> / 238</div>
+
+<div class="tab active" id="tab-learn">
+<div class="content">
+<div class="filters">
+<div class="chip active" onclick="setFilter(this,'all')">الكل</div>
+<div class="chip" onclick="setFilter(this,'greet')">تحيات</div>
+<div class="chip" onclick="setFilter(this,'trade')">تجارة</div>
+<div class="chip" onclick="setFilter(this,'ship')">شحن</div>
+<div class="chip" onclick="setFilter(this,'num')">أرقام</div>
+<div class="chip" onclick="setFilter(this,'quality')">جودة</div>
+</div>
+<div id="learn-container"></div>
+</div>
+</div>
+
+<div class="tab" id="tab-factories">
+<div class="content">
+<div class="section-title">🏭 مصانع موثقة (200)</div>
+<div id="factories-container"></div>
+</div>
+</div>
+
+<div class="tab" id="tab-markets">
+<div class="content">
+<div class="section-title">🛒 أسواق العرب</div>
+<div class="card"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div style="background:#050505;padding:14px;border-radius:12px;border:1px solid #151515;text-align:center;cursor:pointer"><div style="font-size:24px;margin-bottom:4px">🇸🇦</div><div style="font-weight:700">جدة</div><div style="font-size:11px;color:#666;margin-top:2px">باب شريف • 12 تاجر</div></div><div style="background:#050505;padding:14px;border-radius:12px;border:1px solid #151515;text-align:center;cursor:pointer"><div style="font-size:24px;margin-bottom:4px">🇸🇦</div><div style="font-weight:700">الرياض</div><div style="font-size:11px;color:#666;margin-top:2px">البطحاء • 8 تجار</div></div><div style="background:#050505;padding:14px;border-radius:12px;border:1px solid #151515;text-align:center;cursor:pointer"><div style="font-size:24px;margin-bottom:4px">🇾🇪</div><div style="font-weight:700">عدن</div><div style="font-size:11px;color:#666;margin-top:2px">كريتر • 5 تجار</div></div><div style="background:#050505;padding:14px;border-radius:12px;border:1px solid #151515;text-align:center;cursor:pointer"><div style="font-size:24px;margin-bottom:4px">🇦🇪</div><div style="font-weight:700">دبي</div><div style="font-size:11px;color:#666;margin-top:2px">نايف • 20 تاجر</div></div></div></div>
+</div>
+</div>
+
+<div class="tab" id="tab-shipping">
+<div class="content">
+<div class="card"><div style="font-weight:700;margin-bottom:12px;font-size:15px">🚢 حاسبة الشحن الذكية</div><select style="width:100%;background:#000;border:1px solid #222;color:#fff;padding:10px;border-radius:10px;margin-bottom:8px;font-size:13px"><option>قوانغتشو → جدة (بحري)</option><option>شنتشن → الرياض (جوي)</option><option>ييوو → دبي (بحري)</option><option>شنغهاي → عدن (بحري)</option></select><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"><input id="shipWeight" type="number" placeholder="الوزن (كجم)" value="100" style="background:#000;border:1px solid #222;color:#fff;padding:10px;border-radius:10px;font-size:13px"><input id="shipValue" type="number" placeholder="القيمة ($)" value="2500" style="background:#000;border:1px solid #222;color:#fff;padding:10px;border-radius:10px;font-size:13px"></div><button onclick="calculateShipping()" style="width:100%;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border:none;padding:12px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer">احسب التكلفة</button><div id="shipResult" style="display:none;margin-top:12px;padding:12px;background:#050505;border-radius:10px;border:1px solid #1a1a1a"><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="color:#fbbf24;font-weight:800;font-size:22px" id="shipCost">$0</div><div style="font-size:11px;color:#777;margin-top:2px" id="shipTime">-</div></div><button onclick="payShipping()" style="background:#0f0f0f;color:#fbbf24;border:1px solid #2a1f00;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">💳 ادفع</button></div></div></div>
+</div>
+</div>
+
+<div class="tab" id="tab-payment">
+<div class="content">
+<div class="card" style="background:linear-gradient(135deg,#1a1400 0%,#0f0f0f 100%);border:2px solid #fbbf24;text-align:center;padding:20px"><div style="font-size:11px;color:#a16207;margin-bottom:4px">الرصيد المتاح</div><div style="font-size:32px;font-weight:900;color:#fbbf24;margin:4px 0">$12,450</div><div style="display:flex;justify-content:center;gap:24px;font-size:11px;margin-top:8px"><div><span style="color:#666">معلق:</span> <b style="color:#fff">$1,800</b></div><div><span style="color:#666">مكتمل:</span> <b style="color:#22c55e">24</b></div></div></div>
+<div class="card"><div style="font-weight:700;margin-bottom:10px;font-size:14px">💰 دفع سريع</div><input id="payFactory" placeholder="اسم المصنع" style="width:100%;background:#000;border:1px solid #222;color:#fff;padding:11px;border-radius:10px;margin-bottom:8px;font-size:13px"><input id="payAmount" type="number" placeholder="المبلغ بالدولار" style="width:100%;background:#000;border:1px solid #222;color:#fff;padding:11px;border-radius:10px;margin-bottom:10px;font-size:13px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px"><div class="payment-method active" onclick="selectPayment(this)" style="background:#1a1400;border:2px solid #fbbf24;border-radius:8px;padding:10px;text-align:center;cursor:pointer"><div style="font-size:18px">💳</div><div style="font-size:10px;margin-top:2px;color:#fbbf24">بطاقة</div></div><div class="payment-method" onclick="selectPayment(this)" style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:10px;text-align:center;cursor:pointer"><div style="font-size:18px">🅿️</div><div style="font-size:10px;margin-top:2px;color:#888">PayPal</div></div><div class="payment-method" onclick="selectPayment(this)" style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:10px;text-align:center;cursor:pointer"><div style="font-size:18px">🏦</div><div style="font-size:10px;margin-top:2px;color:#888">حوالة</div></div></div><button onclick="processPayment()" style="width:100%;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;border:none;padding:12px;border-radius:10px;font-weight:800;font-size:14px;cursor:pointer;box-shadow:0 3px 12px rgba(251,191,36,.25)">ادفع الآن</button></div>
+</div>
+</div>
+
+<div class="nav">
+<div class="nav-item active" onclick="switchTab('learn',this)"><span class="nav-ic">📚</span>تعلم</div>
+<div class="nav-item" onclick="switchTab('factories',this)"><span class="nav-ic">🏭</span>مصانع</div>
+<div class="nav-item" onclick="switchTab('markets',this)"><span class="nav-ic">🛒</span>أسواق</div>
+<div class="nav-item" onclick="switchTab('shipping',this)"><span class="nav-ic">🚢</span>شحن</div>
+<div class="nav-item" onclick="switchTab('payment',this)"><span class="nav-ic">💳</span>دفع</div>
+</div>
+</div>
+
+<div class="portal" id="factoryPortal">
+<div class="portal-header"><div class="portal-back" onclick="closePortal()">‹</div><div class="portal-info"><div class="portal-name" id="portalName">مصنع</div><div class="portal-sub" id="portalLocation">موقع</div></div></div>
+<div class="portal-content">
+<div class="hero-banner"><div class="hero-bg" id="portalIcon">📱</div><div class="hero-overlay"><div class="hero-stats"><div class="hero-stat">⭐ <span id="portalRating">4.9</span></div><div class="hero-stat">📦 <span id="portalProducts">12,400</span></div><div class="hero-stat">✅ موثق</div><div class="hero-stat">🇸🇦 يشحن</div></div></div></div>
+<div class="quick-grid"><div class="quick-btn" onclick="contactWhatsApp()"><div class="quick-ic">💬</div><div class="quick-tx">واتساب</div></div><div class="quick-btn" onclick="makePhoneCall()"><div class="quick-ic">📞</div><div class="quick-tx">اتصال</div></div><div class="quick-btn" onclick="sendEmailContact()"><div class="quick-ic">✉️</div><div class="quick-tx">إيميل</div></div><div class="quick-btn" onclick="openMap()"><div class="quick-ic">📍</div><div class="quick-tx">موقع</div></div></div>
+<button class="whatsapp-btn" onclick="contactWhatsApp()"><span style="font-size:20px">💬</span><span>تواصل واتساب مباشر</span></button>
+<div class="portal-section"><div class="portal-sec-title">🎓 تعلم مع هذا المصنع</div><div class="learn-scroll" id="portalLearn"></div></div>
+<div class="portal-section"><div class="portal-sec-title">📦 منتجات المصنع</div><div class="product-grid" id="portalProducts"></div></div>
+<div class="portal-section"><div class="portal-sec-title">📊 معلومات</div><div class="info-grid"><div class="info-item"><div class="info-label">تأسس</div><div class="info-value">2008</div></div><div class="info-item"><div class="info-label">موظفين</div><div class="info-value">340</div></div><div class="info-item"><div class="info-label">الحد الأدنى</div><div class="info-value">100 قطعة</div></div><div class="info-item"><div class="info-label">الإنتاج</div><div class="info-value">7-10 أيام</div></div></div></div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const termsData=[
+["我叫","wǒ jiào","وو جياو","ماي نيم إز","My name is","اسمي","greet"],
+["你叫什么","nǐ jiào shénme","ني جياو شِن مه","واتس يور نيم","What's your name","ما اسمك","greet"],
+["你好","nǐ hǎo","ني هاو","هيلو","Hello","مرحبا","greet"],
+["谢谢","xiè xie","شيه شيه","ثانك يو","Thank you","شكرا","greet"],
+["不客气","bú kèqi","بو كَ تشي","يو ويلكم","You're welcome","العفو","greet"],
+["再见","zàijiàn","زاي جيان","جود باي","Goodbye","مع السلامة","greet"],
+["对不起","duìbuqǐ","دوي بو تشي","سوري","Sorry","آسف","greet"],
+["没关系","méi guānxi","مي قوان شي","نو بروبلم","No problem","لا مشكلة","greet"],
+
+["多少钱","duō shǎo qián","دُو شاو تشيَن","هاو ماتش","How much","كم السعر","trade"],
+["太贵了","tài guì le","تاي قوي لا","تو إكسبنسف","Too expensive","غالي جداً","trade"],
+["便宜一点","pián yi yì diǎn","بِيَن يِي يِد يَن","تشيبر بليز","Cheaper please","أرخص شوية","trade"],
+["可以打折吗","kěyǐ dǎzhé ma","كَي يِي دا جَ ما","كان يو ديسكاونت","Can you discount","ممكن خصم","trade"],
+["最低价","zuì dī jià","زوي دي جيا","لوست برايس","Lowest price","أقل سعر","trade"],
+["我要这个","wǒ yào zhège","وو ياو جَ قَ","آي وانت ذس","I want this","أريد هذا","trade"],
+["不要","bú yào","بو ياو","دونت وانت","Don't want","لا أريد","trade"],
+["质量很好","zhì liàng hěn hǎo","جِ ليانغ هِن هاو","جود كواليتي","Good quality","جودة ممتازة","trade"],
+["质量不好","zhìliàng bù hǎo","جِ ليانغ بو هاو","باد كواليتي","Bad quality","جودة سيئة","trade"],
+["有现货吗","yǒu xiànhuò ma","يو شيان هو ما","إن ستوك","In stock","متوفر","trade"],
+["工厂","gōng chǎng","قونغ تشانغ","فاكتوري","Factory","مصنع","trade"],
+["样品","yàngpǐn","يانغ بن","سامبل","Sample","عينة","trade"],
+["大货","dà huò","دا هو","بالك","Bulk goods","بضاعة كبيرة","trade"],
+["价格","jiàgé","جيا قَ","برايس","Price","سعر","trade"],
+["付款","fù kuǎn","فُو كوان","بيمنت","Payment","دفع","trade"],
+["订金","dìngjīn","دينغ جين","ديبوزت","Deposit","عربون","trade"],
+["尾款","wěi kuǎn","وي كوان","بالانس","Balance","باقي المبلغ","trade"],
+["发票","fāpiào","فا بياو","إنفويس","Invoice","فاتورة","trade"],
+["合同","hétong","هَ تونغ","كونتراكت","Contract","عقد","trade"],
+
+["发货","fā huò","فا هُو","شيب","Ship","اشحن","ship"],
+["海运","hǎiyùn","هاي يون","سي فريت","Sea freight","شحن بحري","ship"],
+["空运","kōngyùn","كونغ يون","إير فريت","Air freight","شحن جوي","ship"],
+["快递","kuàidì","كواي دي","إكسبرس","Express","شحن سريع","ship"],
+["什么时候发货","shénme shíhòu fā huò","شن ما شي هو فا هو","ون شيب","When ship","متى الشحن","ship"],
+["运费","yùnfèi","يون في","شيبنغ كوست","Shipping cost","تكلفة الشحن","ship"],
+["到港","dào gǎng","داو قانغ","أرايف بورت","Arrive port","وصول الميناء","ship"],
+["清关","qīng guān","تشينغ قوان","كاستمز","Customs","تخليص جمركي","ship"],
+["提单","tídān","تي دان","بيل أوف ليدنغ","Bill of lading","بوليصة شحن","ship"],
+["包装","bāozhuāng","باو جوانغ","باكجنغ","Packaging","تغليف","ship"],
+["木箱","mù xiāng","مو شيانغ","وودن بوكس","Wooden box","صندوق خشب","ship"],
+["纸箱","zhǐ xiāng","جِ شيانغ","كارتون","Carton","كرتون","ship"],
+
+["一","yī","يي","وان","One","واحد","num"],
+["二","èr","أر","تو","Two","اثنين","num"],
+["三","sān","سان","ثري","Three","ثلاثة","num"],
+["四","sì","سِ","فور","Four","أربعة","num"],
+["五","wǔ","وو","فايف","Five","خمسة","num"],
+["六","liù","ليو","سكس","Six","ستة","num"],
+["七","qī","تشي","سفن","Seven","سبعة","num"],
+["八","bā","با","إيت","Eight","ثمانية","num"],
+["九","jiǔ","جيو","ناين","Nine","تسعة","num"],
+["十","shí","شِ","تن","Ten","عشرة","num"],
+["十一","shí yī","شِ يي","إليفن","Eleven","أحد عشر","num"],
+["十二","shí èr","شِ أر","تويلف","Twelve","اثنا عشر","num"],
+["二十","èr shí","أر شِ","تونتي","Twenty","عشرون","num"],
+["三十","sān shí","سان شِ","ثيرتي","Thirty","ثلاثون","num"],
+["一百","yī bǎi","يي باي","هندرد","100","مئة","num"],
+["一千","yī qiān","يي تشيان","ثاوزند","1000","ألف","num"],
+["一万","yī wàn","يي وان","تن ثاوزند","10,000","عشرة آلاف","num"],
+
+["好","hǎo","هاو","جود","Good","جيد","quality"],
+["不好","bù hǎo","بو هاو","نوت جود","Not good","غير جيد","quality"],
+["可以","kěyǐ","كَي يِي","أوكي","OK","ممكن","quality"],
+["不行","bù xíng","بو شينغ","نو","No good","لا يصلح","quality"],
+["新的","xīn de","شين دَ","نيو","New","جديد","quality"],
+["旧的","jiù de","جيو دَ","أولد","Old","قديم","quality"],
+["大的","dà de","دا دَ","بغ","Big","كبير","quality"],
+["小的","xiǎo de","شياو دَ","سمول","Small","صغير","quality"],
+["长的","cháng de","تشانغ دَ","لونغ","Long","طويل","quality"],
+["短的","duǎn de","دوان دَ","شورت","Short","قصير","quality"],
+["重的","zhòng de","جونغ دَ","هيفي","Heavy","ثقيل","quality"],
+["轻的","qīng de","تشينغ دَ","لايت","Light","خفيف","quality"],
+["颜色","yánsè","يان سَ","كالر","Color","لون","quality"],
+["红色","hóng sè","هونغ سَ","رد","Red","أحمر","quality"],
+["蓝色","lán sè","لان سَ","بلو","Blue","أزرق","quality"],
+["黑色","hēi sè","هي سَ","بلاك","Black","أسود","quality"],
+["白色","bái sè","باي سَ","وايت","White","أبيض","quality"],
+
+["今天","jīntiān","جين تيان","توداي","Today","اليوم","time"],
+["明天","míngtiān","مينغ تيان","تومورو","Tomorrow","غداً","time"],
+["昨天","zuótiān","زو تيان","يسترداي","Yesterday","أمس","time"],
+["现在","xiànzài","شيان زاي","ناو","Now","الآن","time"],
+["早上","zǎoshang","زاو شانغ","مورنينغ","Morning","صباح","time"],
+["下午","xiàwǔ","شيا وو","أفترنون","Afternoon","بعد الظهر","time"],
+["晚上","wǎnshang","وان شانغ","إيفننغ","Evening","مساء","time"],
+["几点","jǐ diǎn","جي ديان","وات تايم","What time","كم الساعة","time"],
+["快点","kuài diǎn","كواي ديان","فاستر","Faster","أسرع","time"],
+["慢点","màn diǎn","مان ديان","سلور","Slower","أبطأ","time"],
+
+["我要订货","wǒ yào dìng huò","وو ياو دينغ هو","آي وانت أوردر","I want to order","أريد أطلب","trade"],
+["最少起订量","zuìshǎo qǐdìngliàng","زوي شاو تشي دينغ ليانغ","إم أو كيو","MOQ","أقل كمية","trade"],
+["交货期","jiāo huò qī","جياو هو تشي","ليد تايم","Lead time","مدة التسليم","trade"],
+["有保修吗","yǒu bǎoxiū ma","يو باو شيو ما","وارنتي","Warranty","في ضمان","trade"],
+["退货","tuì huò","توي هو","ريترن","Return","إرجاع","trade"],
+["换货","huàn huò","هوان هو","إكسچينج","Exchange","استبدال","trade"]
+];
+const factoriesData=[{icon:'📱',name:'Huaqiangbei Electronics',location:'شنتشن • 华强北',rating:'4.9',products:'12,400',whatsapp:'8613800138000',email:'sales@huaqiangbei.com',phone:'+8613800138000'},{icon:'👕',name:'Baima Clothing',location:'قوانغتشو • 白马',rating:'4.8',products:'8,200',whatsapp:'8613900139000',email:'info@baima.com',phone:'+8613900139000'},{icon:'🛍️',name:'Yiwu International',location:'ييوو • 义乌',rating:'4.9',products:'75,000',whatsapp:'8613700137000',email:'contact@yiwu.com',phone:'+8613700137000'},{icon:'🔋',name:'Fuyong Battery',location:'شنتشن • 福永',rating:'4.7',products:'3,400',whatsapp:'8613600136000',email:'sales@fuyong.com',phone:'+8613600136000'},{icon:'💡',name:'Zhongshan Lighting',location:'تشونغشان • 中山',rating:'4.8',products:'15,600',whatsapp:'8613500135000',email:'info@zhongshan.com',phone:'+8613500135000'},{icon:'👟',name:'Wenzhou Shoes',location:'ونتشو • 温州',rating:'4.6',products:'9,800',whatsapp:'8613400134000',email:'sales@wenzhou.com',phone:'+8613400134000'},{icon:'🧸',name:'Chenghai Toys',location:'تشنغهاي • 澄海',rating:'4.7',products:'22,000',whatsapp:'8613300133000',email:'info@chenghai.com',phone:'+8613300133000'},{icon:'📦',name:'Yiwu Packaging',location:'ييوو • 包装',rating:'4.9',products:'5,200',whatsapp:'8613200132000',email:'pack@yiwu.com',phone:'+8613200132000'}];
+let currentFilter='all',favorites=new Set(),currentFactory=null,mediaRecorder=null,recordedChunks=[];
+
+function showToast(message){const t=document.getElementById('toast');t.textContent=message;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+function switchTab(tabName,element){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById('tab-'+tabName).classList.add('active');document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));element.classList.add('active');window.scrollTo(0,0)}
+function setFilter(element,filter){document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));element.classList.add('active');currentFilter=filter;renderLearn()}
+function renderLearn(){const container=document.getElementById('learn-container');const filtered=currentFilter==='all'?termsData:termsData.filter(t=>t[6]===currentFilter);document.getElementById('counter').textContent=filtered.length;container.innerHTML=filtered.map((term,index)=>`<div class="card"><div class="learn-top"><div class="cn-wrap"><div class="cn-char">${term[0]}</div><div class="cn-py">${term[1]}</div></div><div class="play-btn" onclick="playAudio('${term[0]}',this)"><svg viewBox="0 0 24 24"><path d="M8 5.14v14l11-7-11-7z"/></svg></div></div><div class="lang-grid"><div class="lang-box en"><div class="lang-label">🇺🇸 English</div><div class="lang-ar">${term[3]}</div><div class="lang-en">${term[4]}</div></div><div class="lang-box cn"><div class="lang-label">🇨🇳 中文</div><div class="lang-ar">${term[2]}</div><div class="lang-en">${term[1]}</div></div></div><div class="result-box"><div class="result-ar">${term[5]}</div><div class="result-meta">${term[4]} • ${term[0]}</div></div><div class="actions"><div class="action action-heart ${favorites.has(term[0])?'liked':''}" onclick="toggleFavorite('${term[0]}',this)">${favorites.has(term[0])?'❤️':'🤍'}</div><div class="action action-video" onclick="startVideoRecording('${term[0]}',this)"><span>📹</span><span style="margin-right:4px">سجل فيديو</span></div><div class="action action-voice" onclick="startVoiceRecording('${term[0]}',this)"><span>🎤</span><span style="margin-right:4px">تدرب</span></div></div><div class="rec-indicator" id="rec-${index}"><div class="rec-dot"></div><span>جاري التسجيل...</span><span id="timer-${index}" style="margin-right:auto;font-family:monospace">00:00</span></div><div class="media-preview" id="preview-${index}"></div></div>`).join('')}
+function renderFactories(){const container=document.getElementById('factories-container');container.innerHTML=factoriesData.map((factory,index)=>`<div class="factory-item" onclick="openFactoryPortal(${index})"><div class="f-icon">${factory.icon}</div><div class="f-details"><div class="f-name">${factory.name}<span class="f-badge">موثق</span></div><div class="f-location">📍 ${factory.location}</div><div class="f-stats"><span class="f-stat">⭐ ${factory.rating}</span><span class="f-stat">📦 ${factory.products}</span><span class="f-stat pay" onclick="event.stopPropagation();quickPay('${factory.name}')">💳 ادفع</span></div></div></div>`).join('')}
+function playAudio(text,button){const audio=new Audio('https://translate.google.com/translate_tts?ie=UTF-8&tl=zh-CN&client=tw-ob&q='+encodeURIComponent(text));button.classList.add('playing');audio.play().catch(()=>showToast('تعذر تشغيل الصوت'));audio.onended=()=>button.classList.remove('playing');if(navigator.vibrate)navigator.vibrate(10)}
+function toggleFavorite(term,element){if(favorites.has(term)){favorites.delete(term);element.classList.remove('liked');element.innerHTML='🤍'}else{favorites.add(term);element.classList.add('liked');element.innerHTML='❤️'}if(navigator.vibrate)navigator.vibrate(10)}
+async function startVoiceRecording(term,button){const card=button.closest('.card');const index=Array.from(document.querySelectorAll('.card')).indexOf(card);const indicator=document.getElementById(`rec-${index}`);const preview=document.getElementById(`preview-${index}`);if(button.classList.contains('recording')){mediaRecorder.stop();button.classList.remove('recording');button.innerHTML='<span>🎤</span><span style="margin-right:4px">تدرب</span>';indicator.classList.remove('active');return}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});recordedChunks=[];mediaRecorder=new MediaRecorder(stream);let startTime=Date.now();let timerInterval;mediaRecorder.ondataavailable=e=>{if(e.data.size>0)recordedChunks.push(e.data)};mediaRecorder.onstop=()=>{const blob=new Blob(recordedChunks,{type:'audio/webm'});const url=URL.createObjectURL(blob);preview.innerHTML=`<audio controls src="${url}" style="width:100%"></audio>`;preview.classList.add('active');stream.getTracks().forEach(t=>t.stop());clearInterval(timerInterval);showToast('✅ تم حفظ التسجيل الصوتي')};mediaRecorder.start();button.classList.add('recording');button.innerHTML='<span>⏹️</span><span style="margin-right:4px">إيقاف</span>';indicator.classList.add('active');timerInterval=setInterval(()=>{const elapsed=Math.floor((Date.now()-startTime)/1000);const mins=String(Math.floor(elapsed/60)).padStart(2,'0');const secs=String(elapsed%60).padStart(2,'0');document.getElementById(`timer-${index}`).textContent=`${mins}:${secs}`},1000);showToast('🎤 بدأ التسجيل - تحدث الآن')}catch(err){showToast('❌ يلزم إذن الميكروفون');console.error(err)}}
+async function startVideoRecording(term,button){const card=button.closest('.card');const index=Array.from(document.querySelectorAll('.card')).indexOf(card);const preview=document.getElementById(`preview-${index}`);if(button.classList.contains('recording')){mediaRecorder.stop();button.classList.remove('recording');button.innerHTML='<span>📹</span><span style="margin-right:4px">سجل فيديو</span>';return}try{const stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});recordedChunks=[];mediaRecorder=new MediaRecorder(stream,{mimeType:'video/webm'});preview.innerHTML='<video autoplay muted playsinline style="width:100%;max-height:200px;background:#000"></video>';preview.querySelector('video').srcObject=stream;preview.classList.add('active');mediaRecorder.ondataavailable=e=>{if(e.data.size>0)recordedChunks.push(e.data)};mediaRecorder.onstop=()=>{const blob=new Blob(recordedChunks,{type:'video/webm'});const url=URL.createObjectURL(blob);preview.innerHTML=`<video controls src="${url}" style="width:100%;max-height:200px"></video>`;stream.getTracks().forEach(t=>t.stop());showToast('✅ تم حفظ الفيديو')};mediaRecorder.start();button.classList.add('recording');button.innerHTML='<span>⏹️</span><span style="margin-right:4px">إيقاف</span>';showToast('📹 بدأ تسجيل الفيديو')}catch(err){showToast('❌ يلزم إذن الكاميرا');console.error(err)}}
+function openFactoryPortal(index){currentFactory=factoriesData[index];document.getElementById('portalName').textContent=currentFactory.name;document.getElementById('portalLocation').textContent=currentFactory.location;document.getElementById('portalIcon').textContent=currentFactory.icon;document.getElementById('portalRating').textContent=currentFactory.rating;document.getElementById('portalProducts').textContent=currentFactory.products;document.getElementById('factoryPortal').classList.add('active');document.body.style.overflow='hidden';const learnContainer=document.getElementById('portalLearn');learnContainer.innerHTML=[['你好','nǐ hǎo','مرحبا'],['多少钱','duō shǎo','كم السعر'],['便宜','pián yi','أرخص']].map(item=>`<div class="learn-chip" onclick="playAudio('${item[0]}',this)"><div class="learn-chip-cn">${item[0]}</div><div class="learn-chip-ar">${item[2]}</div></div>`).join('');const productsContainer=document.getElementById('portalProducts');productsContainer.innerHTML=['📱','🎧','🔌','🔋','⌚','💡'].map((icon,i)=>`<div class="product-card" onclick="showToast('منتج ${i+1}')"><div class="product-img">${icon}</div><div class="product-name">منتج ${i+1}</div></div>`).join('')}
+function closePortal(){document.getElementById('factoryPortal').classList.remove('active');document.body.style.overflow='';currentFactory=null}
+function contactWhatsApp(){if(!currentFactory)return;const message=encodeURIComponent(`مرحبا ${currentFactory.name}، أريد الاستفسار عن منتجاتكم من تطبيق طريق الأمير`);window.open(`https://wa.me/${currentFactory.whatsapp}?text=${message}`,'_blank');showToast('💬 فتح واتساب')}
+function makePhoneCall(){if(!currentFactory)return;window.location.href=`tel:${currentFactory.phone}`;showToast('📞 اتصال')}
+function sendEmailContact(){if(!currentFactory)return;window.location.href=`mailto:${currentFactory.email}?subject=استفسار من طريق الأمير&body=مرحبا، أريد الاستفسار عن منتجاتكم`;showToast('✉️ فتح الإيميل')}
+function openMap(){if(!currentFactory)return;window.open(`https://maps.google.com/?q=${encodeURIComponent(currentFactory.location)}`,'_blank');showToast('📍 فتح الخريطة')}
+function calculateShipping(){const weight=document.getElementById('shipWeight').value||0;const value=document.getElementById('shipValue').value||0;const cost=Math.round(weight*4.5+value*0.03+120);document.getElementById('shipCost').textContent='$'+cost;document.getElementById('shipTime').textContent='بحري • 18-22 يوم • وزن '+weight+' كجم';document.getElementById('shipResult').style.display='block';showToast('✅ تم حساب الشحن')}
+function payShipping(){showToast('💳 جاري التحويل للدفع')}
+function selectPayment(element){document.querySelectorAll('.payment-method').forEach(m=>{m.style.background='#0f0f0f';m.style.border='1px solid #1a1a1a';m.querySelector('div:last-child').style.color='#888'});element.style.background='#1a1400';element.style.border='2px solid #fbbf24';element.querySelector('div:last-child').style.color='#fbbf24'}
+function processPayment(){const factory=document.getElementById('payFactory').value;const amount=document.getElementById('payAmount').value;if(!factory||!amount){showToast('❌ أدخل جميع البيانات');return}showToast(`✅ تم الدفع $${amount} إلى ${factory}`);document.getElementById('payFactory').value='';document.getElementById('payAmount').value=''}
+function quickPay(factoryName){document.getElementById('payFactory').value=factoryName;document.getElementById('payAmount').value='2400';switchTab('payment',document.querySelectorAll('.nav-item')[4]);showToast('💳 جاهز للدفع لـ '+factoryName)}
+
+// === SMART FEATURES ===
+let xp = parseInt(localStorage.getItem('tq_xp')||'0');
+let dailyCount = parseInt(localStorage.getItem('tq_daily')||'0');
+let lastDate = localStorage.getItem('tq_date')||'';
+let streak = parseInt(localStorage.getItem('tq_streak')||'0');
+const today = new Date().toDateString();
+
+if(lastDate !== today){ dailyCount = 0; localStorage.setItem('tq_date', today); }
+if(localStorage.getItem('tq_onboard') !== 'done'){ document.getElementById('onboard').classList.remove('hide'); }
+
+function startApp(){
+  document.getElementById('onboard').classList.add('hide');
+  localStorage.setItem('tq_onboard','done');
+  vibrate(20);
+  showToast('👑 أهلاً بك في طريق الأمير');
+  updateXP();
+}
+
+function vibrate(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+function updateXP(){
+  document.getElementById('xpFill').style.width = Math.min(100, (xp % 100)) + '%';
+  document.getElementById('dailyCounter').textContent = `اليوم: ${dailyCount}/20 • 🔥${streak}`;
+}
+
+function addXP(amount, reason){
+  xp += amount;
+  dailyCount++;
+  localStorage.setItem('tq_xp', xp);
+  localStorage.setItem('tq_daily', dailyCount);
+  
+  // Check streak
+  if(dailyCount >= 20 && lastDate !== today){
+    streak++;
+    localStorage.setItem('tq_streak', streak);
+  }
+  
+  // Show popup
+  document.getElementById('xpText').textContent = `+${amount} XP`;
+  document.getElementById('xpSub').textContent = reason;
+  const popup = document.getElementById('xpPopup');
+  popup.classList.add('show');
+  setTimeout(()=>popup.classList.remove('show'), 1500);
+  
+  vibrate([10,20,10]);
+  updateXP();
+  
+  // Level up
+  if(xp % 100 === 0){
+    setTimeout(()=>showToast(`🎉 مستوى جديد! ${Math.floor(xp/100)}`), 1600);
+  }
+}
+
+function openSOS(){
+  vibrate(50);
+  const sosPhrases = [
+    ['أريد خصم', 'wǒ yào dǎzhé', 'وو ياو دا جة'],
+    ['غالي جداً', 'tài guì le', 'تاي قوي لا'],
+    ['جودة سيئة', 'zhìliàng bù hǎo', 'جِ ليانغ بو هاو'],
+    ['أريد عينة', 'wǒ yào yàngpǐn', 'وو ياو يانغ بن'],
+    ['متى الشحن', 'shénme shíhòu fā huò', 'شن ما شي هو فا هو']
+  ];
+  
+  const html = sosPhrases.map(p=>`
+    <div style="background:#0a0a0a;border:1px solid #222;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer" onclick="playAudio('${p[1]}',this);addXP(5,'طوارئ')">
+      <div style="font-size:18px;font-weight:700;color:#ef4444">${p[0]}</div>
+      <div style="font-size:13px;color:#fbbf24;margin:4px 0">${p[2]}</div>
+      <div style="font-size:11px;color:#666">${p[1]}</div>
+    </div>
+  `).join('');
+  
+  showToast('🆘 جمل الطوارئ');
+  // Create modal
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:2000;padding:20px;overflow-y:auto';
+  modal.innerHTML = `<div style="max-width:400px;margin:0 auto"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><h2 style="color:#ef4444">🆘 طوارئ المصنع</h2><button onclick="this.parentElement.parentElement.parentElement.remove()" style="background:#222;border:none;color:#fff;width:32px;height:32px;border-radius:8px;font-size:20px">×</button></div>${html}</div>`;
+  document.body.appendChild(modal);
+}
+
+// Override original functions to add XP
+const originalPlayAudio = window.playAudio;
+window.playAudio = function(text, button){
+  originalPlayAudio(text, button);
+  addXP(2, 'استماع');
+  vibrate(10);
+};
+
+const originalToggleFavorite = window.toggleFavorite;
+window.toggleFavorite = function(term, element){
+  originalToggleFavorite(term, element);
+  if(!favorites.has(term)) addXP(3, 'حفظ');
+  vibrate(10);
+};
+
+// Enhance recording with AI scoring
+const originalStartVoice = window.startVoiceRecording;
+window.startVoiceRecording = async function(term, button){
+  await originalStartVoice(term, button);
+  // Simulate AI scoring after recording
+  setTimeout(()=>{
+    if(button.classList.contains('recording')) return;
+    const score = 75 + Math.floor(Math.random()*20);
+    const feedback = score > 85 ? 'ممتاز!' : score > 75 ? 'جيد' : 'حاول مرة أخرى';
+    showToast(`🤖 تقييم النطق: ${score}% - ${feedback}`);
+    addXP(10, 'تدريب صوتي');
+  }, 2000);
+};
+
+const originalStartVideo = window.startVideoRecording;
+window.startVideoRecording = async function(term, button){
+  await originalStartVideo(term, button);
+  setTimeout(()=>{
+    if(!button.classList.contains('recording')) addXP(15, 'تسجيل فيديو');
+  }, 1000);
+};
+
+// Initialize
+updateXP();
+
+// Pull to refresh
+let startY = 0;
+document.addEventListener('touchstart', e => startY = e.touches[0].clientY);
+document.addEventListener('touchend', e => {
+  if(window.scrollY === 0 && e.changedTouches[0].clientY - startY > 100){
+    vibrate(20);
+    showToast('🔄 تحديث...');
+    setTimeout(()=>location.reload(), 500);
+  }
+});
+
+renderLearn();renderFactories();
+</script>
+</body>
+</html>
