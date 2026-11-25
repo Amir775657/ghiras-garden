@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head><style>
+@font-face {
+  font-family: "Optimistic";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("/fonts/OptimisticAI_VF_Optimized.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Optimistic Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/OptimisticMono_W_TextRegular.woff2") format("woff2");
+}
+:where(html) {
+  font-family: "Optimistic", system-ui, sans-serif;
+}
+:where(code, pre, kbd, samp) {
+  font-family: "Optimistic Mono", ui-monospace, monospace;
+}
+</style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghiras - غراس</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#eaf2ec 0%,#f7f3e8 55%,#e8eef0 100%);min-height:100vh;color:#1c2b2a}
+.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.72);backdrop-filter:blur(16px);padding:10px 12px;display:flex;gap:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,.9)}
+.logo{flex:1;background:#16432e;color:#fff;border-radius:14px;padding:8px 10px;display:flex;gap:10px;align-items:center}
+.logo-mark{width:42px;height:42px;border-radius:50%;background:#fff;color:#16432e;display:grid;place-items:center;font-size:20px}
+.logo b{font-size:17px}.logo small{display:block;font-size:11px;opacity:.92}
+.lang{border:1px solid #d8e2de;background:rgba(255,255,255,.85);border-radius:999px;padding:8px 11px;font-weight:800;cursor:pointer}
+.wrap{max-width:520px;margin:0 auto;padding:10px 12px 96px}
+.session{background:rgba(255,255,255,.75);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.95);border-radius:16px;padding:12px;margin:8px 0;box-shadow:0 8px 24px rgba(20,50,40,.06)}
+.session b{font-size:14px}.session p{font-size:12px;color:#5a6b68;margin-top:2px}
+.srow{display:flex;gap:6px;margin-top:8px}.srow button{flex:1;border:1px solid #dce6df;background:#fff;border-radius:999px;padding:9px;font-weight:800;cursor:pointer}.srow button.on{background:#16432e;color:#fff}
+.timer{font-size:12px;font-weight:800;color:#7a6a2a;text-align:center;margin-top:6px}
+.progress{background:rgba(255,255,255,.75);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.95);border-radius:16px;padding:12px;margin:8px 0}
+.bar{height:9px;background:#e8e2d0;border-radius:999px;margin-top:8px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#d4af5a,#ecd28a);width:10%}
+.stars{display:flex;gap:5px;margin-top:9px;flex-wrap:wrap}.star{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#e9edea;font-size:13px}.star.done{background:#d4af5a;color:#fff}
+.card{background:rgba(255,255,255,.75);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.95);border-radius:20px;padding:18px;margin:10px 0;box-shadow:0 10px 30px rgba(20,50,40,.07);min-height:268px;display:flex;flex-direction:column;justify-content:center;position:relative}
+.card h2{font-size:34px;line-height:1.1}.card .mean{font-size:18px;margin-top:6px;color:#4a5a56}.card .pron{font-weight:800;color:#8a752e;margin-top:8px;font-size:17px}.card .wis{margin-top:12px;font-size:13px;color:#5a6b68;line-height:1.6}
+.sound{position:absolute;top:10px;left:10px;border:0;background:transparent;font-size:20px;cursor:pointer}
+.btn{border:0;border-radius:14px;padding:13px 15px;font-weight:800;cursor:pointer}
+.btn-gold{background:linear-gradient(180deg,#e8c77a,#c9a24a);color:#1a2b12;width:100%}
+.btn-ghost{background:rgba(255,255,255,.88);border:1px solid #e2e8e2}
+.row{display:flex;gap:8px;margin-top:10px}.row .btn{flex:1}
+.small{font-size:12px;color:#5a6b68;text-align:center;margin-top:8px;line-height:1.6}
+.page{display:none}.page.active{display:block}
+.list{list-style:none}.list li{background:rgba(255,255,255,.85);border-radius:14px;padding:12px;margin:8px 0;display:flex;justify-content:space-between;align-items:center}
+.badge{background:#d4af5a;color:#fff;padding:4px 10px;border-radius:999px;font-size:12px}
+input,select{width:100%;padding:12px;border-radius:12px;border:1px solid #dce6df;margin:7px 0;background:#fff}
+.video-box{background:#101f1a;color:#fff;border-radius:16px;padding:14px;text-align:center}.timer-big{font-size:36px;font-weight:900;color:#e8c77a}
+.nav{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);border-top:1px solid #eee;padding:9px;display:flex;gap:6px;max-width:520px;margin:0 auto}
+.nav button{flex:1;border:0;background:transparent;padding:10px;border-radius:12px;font-weight:800;cursor:pointer}.nav button.active{background:#16432e;color:#fff}
+.story{line-height:1.9;font-size:15px}.story b{color:#16432e}
+</style>
+</head>
+<body>
+<div class="top"><div class="logo"><div class="logo-mark">🌴</div><div><b>Ghiras • غراس</b><small>اغرس ذاتك ليثمر وطنك</small></div></div><button class="lang" onclick="toggleLang()">EN | عربي النطق</button></div>
+<div class="wrap">
+<div id="page-home" class="page active">
+<div class="session"><b>مدة الجلسة — نحترم وقتك</b><p>اختر مدتك، نتوقف بلطف ونحفظ مكانك.</p><div class="srow"><button id="s10" class="on" onclick="setSession(10,1,this)">10 دقائق • 1 كبسولة</button><button id="s20" onclick="setSession(20,2,this)">20 دقيقة • 2</button><button id="s30" onclick="setSession(30,3,this)">30 دقيقة • 3</button></div><div class="timer" id="timerText">المتبقي: 10:00 • نحترم وقتك</div></div>
+<div class="progress"><b id="progressText">أنت الآن في الكبسولة 1 — الكلمة 1 من 27</b><div class="bar"><i id="barFill"></i></div><div class="stars" id="stars"></div></div>
+<div class="card" id="mainCard"></div>
+<div class="row"><button class="btn btn-gold" onclick="nextCard()">التالي ▶</button><button class="btn btn-ghost" onclick="addPocket()">⭐ جيبي</button><button class="btn btn-ghost" onclick="prevCard()">↩ عودة</button></div>
+<button class="btn btn-gold" style="margin-top:10px" onclick="nextCard()">أكمل من حيث توقفت</button>
+<p class="small">الاستمرار يصنع الأستاذ • 10 كبسولات • 270 كلمة • اختبار 10 أسئلة • فيديو 25 ثانية</p>
+</div>
+<div id="page-story" class="page"><div class="card"><div class="story" id="storyBox"></div></div><button class="btn btn-gold" onclick="nextCard()">التالي ▶</button></div>
+<div id="page-pocket" class="page"><h3>جيبي</h3><ul class="list" id="pocketList"></ul></div>
+<div id="page-capsules" class="page"><h3>الكبسولات</h3><ul class="list" id="capsuleList"></ul></div>
+<div id="page-video" class="page"><div class="video-box"><div>توثيق فيديو 25 ثانية</div><div class="timer-big" id="timer">25</div><p id="storyText">أنا أمير، من اليمن، في كبسولة البداية، اغرس ذاتك ليثمر وطنك</p><button class="btn btn-gold" onclick="startVideo()">ابدأ التسجيل</button><p class="small" style="color:#cfe0d8">النص يبقى ظاهرا أثناء التسجيل • معاينة ثم موافق أو إعادة • إرسال لواتساب الإدارة وصفحة غراس • حذف بعد تأكيد الوصول فقط</p></div></div>
+<div id="page-settings" class="page">
+<div class="card"><h3>الإعدادات</h3><label>الاسم الأول فقط</label><input id="nameInput" placeholder="مثال: أمير"><label>الدولة</label><input id="countryInput" placeholder="مثال: اليمن"><label>مدة الجلسة — نحترم وقتك</label><select id="sessionSelect"><option>10 دقائق = 1 كبسولة</option><option>20 دقيقة = 2 كبسولة</option><option>30 دقيقة = 3 كبسولات</option></select><button class="btn btn-gold" onclick="saveSettings()">حفظ</button><p class="small">الاسم الأول فقط • لا اسم عائلة • لا مدرسة • لا عنوان • لا إيميل • لا كلمة سر</p></div>
+<div class="card"><h3>من نحن</h3><p>غراس يعلم لغة جديدة بغرسة واحدة ذكية في اليوم، في وقتك، حتى تروي قصتك وتُعلّمها لشخص واحد.</p></div>
+<div class="card"><h3>خدماتنا</h3><p>10 كبسولات • 270 كلمة • اختبار 10 أسئلة • درب نطقك • فيديو 25 ثانية • شهادة • وكيل لشخص واحد</p></div>
+<div class="card"><h3>سياسة الخصوصية</h3><p>الاسم الأول فقط. التسجيلات للإدارة فقط ثم تحذف. لا بيع بيانات، لا إعلانات داخل الغرسة.</p></div>
+<div class="card"><h3>التعليمات</h3><p>خطوتك التالية: اضغط أكمل. الترتيب: 27 كلمة ثم جملة ثم اختبار 10 ثم درب نطقك ثم فيديو ثم كتابة الكبسولة.</p></div>
+<div class="card"><h3>الشهادة</h3><p>بعد 10 كبسولات: الاسم الكامل + اسم الأب + اللقب + التاريخ + رقم الشهادة + توقيع الإدارة. الرقم يولد مرة واحدة ويحفظ.</p><p id="certNo" style="font-weight:800;margin-top:8px"></p></div>
+</div>
+</div>
+<div class="nav"><button class="active" onclick="showPage('home',this)">أكمل</button><button onclick="showPage('story',this)">القصة</button><button onclick="showPage('pocket',this)">جيبي</button><button onclick="showPage('capsules',this)">الكبسولات</button><button onclick="showPage('video',this)">فيديو</button><button onclick="showPage('settings',this)">المزيد</button></div>
+<script>
+let idx=0,capsule=1,sessionMin=10,left=600,sessionTimer=null;
+const words=[["Hello","مرحبا","هلو"],["Home","بيت","هوم"],["Water","ماء","ووتر"],["Book","كتاب","بوك"],["Sun","شمس","صن"],["Friend","صديق","فريند"],["School","مدرسة","سكول"],["Day","يوم","داي"],["Heart","قلب","هارت"],["Start","ابدأ","ستارت"],["Grow","انمو","غرو"],["Story","قصة","ستوري"],["Light","ضوء","لايت"],["Peace","سلام","بيس"],["Dream","حلم","دريم"],["Work","عمل","وورك"],["Hope","أمل","هوب"],["Life","حياة","لايف"],["Hand","يد","هاند"],["Voice","صوت","فويس"],["Word","كلمة","وورد"],["Way","طريق","واي"],["Time","وقت","تايم"],["Love","حب","لوف"],["Land","أرض","لاند"],["Seed","بذرة","سيد"],["Future","مستقبل","فيوتشر"]];
+const wisdoms=["ابدأ من حيث تقف، بما لديك، واغرس اليوم.","الاستمرار يصنع الأستاذ.","اغرس ذاتك ليثمر وطنك.","خطوة صغيرة كل يوم، تصنع طريقا كبيرا.","لا تنتظر الكمال، ابدأ واغرس.","من غرس اليوم، حصد غدا.","تعلم كلمة، قل جملة، احك قصة.","قلبك يزرع، وطنك يزهر.","نطقك يكبر مع كل محاولة.","أنت قادر، لأنك بدأت."];
+function render(){
+ const w=words[idx%27];
+ const name=(localStorage.getItem('ghiras_name')||'أمير'); const country=(localStorage.getItem('ghiras_country')||'اليمن');
+ document.getElementById('mainCard').innerHTML=`<button class="sound" onclick="speak()">🔊</button><div style="font-size:12px;color:#6a7a8a">الكبسولة ${capsule} — الكلمة ${(idx%27)+1} من 27</div><h2>${w[0]}</h2><div class="mean">${w[1]}</div><div class="pron">${w[2]}</div><div class="wis">${wisdoms[(capsule-1)%10]}</div>`;
+ document.getElementById('progressText').textContent=`أنت الآن في الكبسولة ${capsule} — الكلمة ${(idx%27)+1} من 27`;
+ document.getElementById('barFill').style.width=Math.round(((idx%27)+1)/27*100)+'%';
+ let s=''; for(let i=1;i<=10;i++) s+=`<span class="star ${i<capsule?'done':''}">${i<capsule?'★':'☆'}</span>`; document.getElementById('stars').innerHTML=s;
+ let cl=''; for(let i=1;i<=10;i++) cl+=`<li><span>الكبسولة ${i} — 27 كلمة</span><span class="badge">${i<capsule?'مكتملة':i===capsule?'الحالية':'مقفلة'}</span></li>`; document.getElementById('capsuleList').innerHTML=cl;
+ const story=`<b>${name}</b><br>من <b>${country}</b><br>في كبسولة <b>${capsule}</b><br>${wisdoms[(capsule-1)%10]}<br><b>اغرس ذاتك ليثمر وطنك</b>`;
+ document.getElementById('storyBox').innerHTML=`<div style="font-size:12px;color:#6a7a8a">القصة • مبسطة • متصلة</div><div class="story" style="margin-top:10px">${story}</div><div class="small" style="text-align:right">English / المعنى بالعربي / English بحروف عربية — 3 أسطر واضحة</div>`;
+ document.getElementById('storyText').textContent=`أنا ${name}، من ${country}، في كبسولة ${capsule}، ${wisdoms[(capsule-1)%10]} — اغرس ذاتك ليثمر وطنك`;
+ window.scrollTo({top:0,behavior:'smooth'});
+}
+function nextCard(){ idx++; if(idx%27===0){ capsule=Math.min(10,capsule+1); } localStorage.setItem('ghiras_idx',idx); localStorage.setItem('ghiras_capsule',capsule); render(); }
+function prevCard(){ if(idx>0) idx--; render(); }
+function addPocket(){ const w=words[idx%27]; let p=JSON.parse(localStorage.getItem('ghiras_pocket')||'[]'); if(!p.includes(w[0])) p.push(w[0]); localStorage.setItem('ghiras_pocket',JSON.stringify(p)); renderPocket(); alert('أضيفت إلى جيبك: '+w[0]); }
+function renderPocket(){ let p=JSON.parse(localStorage.getItem('ghiras_pocket')||'[]'); document.getElementById('pocketList').innerHTML=p.length?p.map(x=>`<li>${x}</li>`).join(''):'<li>جيبك فارغ — الكلمة الصعبة تدخل هنا وحدها</li>'; }
+function speak(){ const w=words[idx%27]; if('speechSynthesis' in window){ let u=new SpeechSynthesisUtterance(w[0]); u.lang='en-US'; speechSynthesis.speak(u);} }
+function showPage(n,btn){ document.querySelectorAll('.page').forEach(e=>e.classList.remove('active')); document.querySelectorAll('.nav button').forEach(e=>e.classList.remove('active')); if(btn) btn.classList.add('active'); document.getElementById('page-'+n).classList.add('active'); if(n==='pocket') renderPocket(); window.scrollTo({top:0,behavior:'smooth'}); }
+function saveSettings(){ localStorage.setItem('ghiras_name',document.getElementById('nameInput').value); localStorage.setItem('ghiras_country',document.getElementById('countryInput').value); render(); alert('تم الحفظ'); }
+function toggleLang(){ alert('EN | عربي النطق — يترجم كل شيء حتى الأزرار والتذييل والشهادة'); }
+function setSession(min,caps,btn){ sessionMin=min; left=min*60; document.querySelectorAll('.srow button').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); startSessionTimer(); }
+function startSessionTimer(){ if(sessionTimer) clearInterval(sessionTimer); sessionTimer=setInterval(()=>{ left--; let m=Math.floor(left/60),s=left%60; document.getElementById('timerText').textContent=`المتبقي: ${m}:${String(s).padStart(2,'0')} • نحترم وقتك`; if(left<=0){ clearInterval(sessionTimer); alert('انتهت جلستك، نحترم وقتك — أكملت '+capsule+'، مكانك محفوظ'); } },1000); }
+let t=25,timer=null; function startVideo(){ if(timer) return; t=25; timer=setInterval(()=>{ t--; document.getElementById('timer').textContent=t; if(t<=0){ clearInterval(timer); timer=null; alert('تم التسجيل — معاينة ثم موافق أو إعادة'); } },1000); }
+idx=parseInt(localStorage.getItem('ghiras_idx')||'0'); capsule=parseInt(localStorage.getItem('ghiras_capsule')||'1');
+if(!localStorage.getItem('ghiras_cert')) localStorage.setItem('ghiras_cert','GH-'+Math.floor(100000+Math.random()*900000));
+document.getElementById('certNo').textContent='رقم الشهادة: '+localStorage.getItem('ghiras_cert')+' — يولد مرة واحدة ويحفظ';
+render(); renderPocket(); startSessionTimer();
+</script>
+<script>(function(){var loc=location.href.replace(/#.*$/,"");var ATTR_NAMES=["data-product-id","data-productid","data-product_id","product-id","productid","product_id","data-source-entity-id","source-entity-id","source_entity_id","data-product","data-metadata","data-meta"];var DATASET_KEYS=["productId","productid","product_id","sourceEntityId","sourceentityid","source_entity_id","product","metadata","meta"];function readProductId(value){if(typeof value!=="string"||value.length===0)return null;if(/^[0-9]{6,}$/.test(value))return value;var match=value.match(/(?:product(?:_|-)?id|source(?:_|-)?entity(?:_|-)?id)["'=:\s]+([0-9]{6,})/i);return match?match[1]:null}function extractProductId(start){for(var node=start;node&&node!==document.body;node=node.parentElement){for(var i=0;i<ATTR_NAMES.length;i++){var attrValue=node.getAttribute&&node.getAttribute(ATTR_NAMES[i]);var attrProductId=readProductId(attrValue);if(attrProductId)return attrProductId}var dataset=node.dataset||null;if(dataset){for(var j=0;j<DATASET_KEYS.length;j++){var dataValue=dataset[DATASET_KEYS[j]];var dataProductId=readProductId(dataValue);if(dataProductId)return dataProductId}}}return null}function isInlineMediaSlotElement(node){return !!(node&&node.getAttribute&&node.getAttribute("data-clippy-inline-media-slot")!==null)}function findInlineMediaSlot(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(isInlineMediaSlotElement(node))return node}return null}function readInlineMediaUrl(node){if(!node)return null;return node.getAttribute&&((node.getAttribute("data-clippy-inline-media-url")||node.getAttribute("data-url")||node.getAttribute("data_url")))||node.href||null}function stripHash(url){return String(url).replace(/#.*$/,"")}function urlsMatch(a,b){if(!a||!b)return false;try{return stripHash(new URL(a,loc).href)===stripHash(new URL(b,loc).href)}catch(_){return stripHash(a)===stripHash(b)}}function isFirstPartyReelUrl(value){try{var url=new URL(value,loc);if(url.protocol!=="https:")return false;var host=url.hostname.toLowerCase();var supported=host==="instagram.com"||host.endsWith(".instagram.com")||host==="facebook.com"||host.endsWith(".facebook.com");return supported&&/\/reels?\//i.test(url.pathname)}catch(_){return false}}function isInlineMediaUrlClick(node,href){var slot=findInlineMediaSlot(node);if(!slot)return false;var slotUrl=readInlineMediaUrl(slot);if(slotUrl)return urlsMatch(href,slotUrl);return isFirstPartyReelUrl(href)}function findDataHref(start){for(var node=start;node&&node!==document.body;node=node.parentElement){if(node.getAttribute){var href=node.getAttribute("data-href")||node.getAttribute("data-url");if(href)return{href:href,node:node}}}return null}var nativeOpen=window.open;window.open=function(url){if(parent!==window&&typeof url==="string"&&/^https?:\/\//.test(url)){parent.postMessage({type:"ecto:usercontent-link-click",href:url},"*");return null}return nativeOpen?nativeOpen.apply(window,arguments):null};document.addEventListener("click",function(e){var target=e.target instanceof Element?e.target:null;if(!target)return;if(parent===window)return;var a=target.closest?target.closest("a[href]"):null;if(a&&a.href&&/^https?:\/\//.test(a.href)&&a.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(a,a.href))return;var productId=extractProductId(target)||extractProductId(a);if(productId){e.preventDefault();parent.postMessage({type:"ecto-artifact-link-click",productId:productId},"*");return}e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:a.href},"*");return}var dataHref=findDataHref(target);if(dataHref&&/^https?:\/\//.test(dataHref.href)&&dataHref.href.replace(/#.*$/,"")!==loc){if(isInlineMediaUrlClick(dataHref.node,dataHref.href))return;e.preventDefault();parent.postMessage({type:"ecto:usercontent-link-click",href:dataHref.href},"*")}},true)})();</script><script>(function(){var FOCUS_TYPE="ecto:artifact-focus-request";var CLOSE_TYPE="ecto:artifact-close-request";function focusArtifactDocument(){var body=document.body;if(!body)return;try{window.focus();}catch(e){}if(!body.hasAttribute("tabindex"))body.setAttribute("tabindex","-1");try{body.focus({preventScroll:true});}catch(e){try{body.focus();}catch(e2){}}}window.addEventListener("message",function(event){if(event.source!==window.parent)return;var data=event.data;if(!data||typeof data!=="object"||data.type!==FOCUS_TYPE)return;if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",focusArtifactDocument,{once:true});return;}focusArtifactDocument();});window.addEventListener("keydown",function(event){if(event.key!=="Escape")return;window.setTimeout(function(){if(event.defaultPrevented)return;window.parent.postMessage({type:CLOSE_TYPE},"*");},0);});})();</script></body>
+</html>
